@@ -2,7 +2,7 @@
 name = "pubchem-topology"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.88"
 license = "MIT"
 description = "Download PubChem SMILES, classify topology predicates, store Parquet output, and publish to Zenodo"
 repository = "https://github.com/earth-metabolome-initiative/pubchem-topology"
