@@ -7,6 +7,19 @@ license = "MIT"
 description = "Download PubChem SMILES, classify topology predicates, store Parquet output, and publish to Zenodo"
 repository = "https://github.com/earth-metabolome-initiative/pubchem-topology"
 
+[lints.rust]
+missing_docs = "deny"
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "deny"
+expect_used = "deny"
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+panic = "deny"
+todo = "deny"
+unwrap_used = "deny"
+
 [dependencies]
 anyhow = "1.0.100"
 arrow-array = "58.1.0"
@@ -28,3 +41,8 @@ zenodo-rs = "0.1.2"
 
 [dev-dependencies]
 tempfile = "3.23.0"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "debuginfo"
