@@ -24,7 +24,7 @@ data/
 results/*
 !results/review/
 results/review/*
-!results/review/pubchem-topology-preview.svg
+!results/pubchem-topology-infographic.svg
 .zenodo/
 .env
 *.tmp
