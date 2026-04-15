@@ -1,0 +1,30 @@
+[package]
+name = "pubchem-topology"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.86"
+license = "MIT"
+description = "Download PubChem SMILES, classify topology predicates, store Parquet output, and publish to Zenodo"
+repository = "https://github.com/earth-metabolome-initiative/pubchem-topology"
+
+[dependencies]
+anyhow = "1.0.100"
+arrow-array = "58.1.0"
+arrow-schema = "58.1.0"
+dotenvy = "0.15.7"
+flate2 = "1.1.9"
+geometric-traits = { git = "https://github.com/earth-metabolome-initiative/geometric-traits", branch = "main", features = ["std"] }
+indicatif = "0.18.4"
+parquet = { version = "58.1.0", default-features = false, features = ["arrow", "zstd"] }
+rayon = "1.11.0"
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+smiles-parser = { git = "https://github.com/earth-metabolome-initiative/smiles-parser", rev = "962b6082a02a970190ac29bafb5fa6a30210dbfc" }
+time = "0.3.44"
+tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
+toml = "0.9.8"
+zenodo-rs = "0.1.2"
+
+[dev-dependencies]
+tempfile = "3.23.0"
