@@ -8,7 +8,7 @@
 
 Download the current PubChem [`CID-SMILES.gz`](https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Extras/) release, parse it with [`smiles-parser`](https://github.com/earth-metabolome-initiative/smiles-parser), classify molecular topology with [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits), write one row per CID to Parquet, write a JSON summary and SVG infographic, and publish the artifacts to Zenodo with `zenodo-rs`.
 
-![PubChem Molecular Topology infographic](results/pubchem-topology-infographic.svg)
+![PubChem Molecular Topology infographic](infographic.png)
 
 Reproduce the results with:
 
