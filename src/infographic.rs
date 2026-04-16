@@ -13,7 +13,7 @@ use crate::{
 };
 
 const CANVAS_WIDTH: usize = 1_600;
-const CANVAS_HEIGHT: usize = 2_256;
+const CANVAS_HEIGHT: usize = 2_694;
 const PAGE_MARGIN: usize = 64;
 const CONTENT_WIDTH: usize = CANVAS_WIDTH - PAGE_MARGIN * 2;
 const SUMMARY_Y: usize = 250;
@@ -29,7 +29,13 @@ const COMPONENT_SECTION_Y: usize = 472;
 const COMPONENT_PANEL_HEIGHT: usize = 146;
 const COMPONENT_PANEL_WIDTH: usize = CARD_WIDTH;
 const COMPONENT_PANEL_GAP: usize = CARD_GAP_X;
-const CARD_START_Y: usize = 650;
+const DAG_SECTION_Y: usize = 650;
+const DAG_PANEL_HEIGHT: usize = 390;
+const DAG_GRAPH_OFFSET_X: usize = 17;
+const DAG_GRAPH_OFFSET_Y: usize = 12;
+const DAG_LEGEND_X: usize = 1_148;
+const DAG_LEGEND_Y: usize = 44;
+const CARD_START_Y: usize = 1_068;
 const GRAPHLET_FRAME_X: usize = 22;
 const GRAPHLET_FRAME_Y: usize = 42;
 const GRAPHLET_FRAME_SIZE: usize = 160;
@@ -38,7 +44,7 @@ const GRAPHLET_SCALE_FACTOR: f32 = 0.86;
 const CARD_TEXT_X: usize = 196;
 const CARD_BAR_WIDTH: f64 = 470.0;
 const CARD_DESCRIPTION_WIDTH: f32 = 474.0;
-const FOOTER_Y: usize = 2_168;
+const FOOTER_Y: usize = 2_586;
 const REPOSITORY_URL: &str = env!("CARGO_PKG_REPOSITORY");
 
 struct CardSpec {
@@ -50,6 +56,14 @@ struct CardSpec {
     graphlet_shift_x: i32,
     graphlet_shift_y: i32,
     graphlet_scale: f32,
+}
+
+struct DagNodeSpec {
+    check: Check,
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
 }
 
 const CARD_SPECS: [CardSpec; CHECK_COUNT] = [
@@ -155,6 +169,97 @@ const CARD_SPECS: [CardSpec; CHECK_COUNT] = [
     },
 ];
 
+const DAG_TOPOLOGY_NODES: [DagNodeSpec; 7] = [
+    DagNodeSpec {
+        check: Check::Tree,
+        x: 92,
+        y: 164,
+        width: 136,
+        height: 64,
+    },
+    DagNodeSpec {
+        check: Check::Forest,
+        x: 326,
+        y: 164,
+        width: 176,
+        height: 64,
+    },
+    DagNodeSpec {
+        check: Check::Cactus,
+        x: 590,
+        y: 164,
+        width: 176,
+        height: 64,
+    },
+    DagNodeSpec {
+        check: Check::Chordal,
+        x: 324,
+        y: 72,
+        width: 180,
+        height: 64,
+    },
+    DagNodeSpec {
+        check: Check::Bipartite,
+        x: 310,
+        y: 256,
+        width: 208,
+        height: 64,
+    },
+    DagNodeSpec {
+        check: Check::Outerplanar,
+        x: 878,
+        y: 164,
+        width: 216,
+        height: 64,
+    },
+    DagNodeSpec {
+        check: Check::Planar,
+        x: 1_190,
+        y: 164,
+        width: 156,
+        height: 64,
+    },
+];
+
+const DAG_OBSTRUCTION_NODES: [DagNodeSpec; 3] = [
+    DagNodeSpec {
+        check: Check::K23Homeomorph,
+        x: 882,
+        y: 298,
+        width: 104,
+        height: 46,
+    },
+    DagNodeSpec {
+        check: Check::K4Homeomorph,
+        x: 998,
+        y: 298,
+        width: 80,
+        height: 46,
+    },
+    DagNodeSpec {
+        check: Check::K33Homeomorph,
+        x: 1_216,
+        y: 298,
+        width: 104,
+        height: 46,
+    },
+];
+
+const DAG_DIRECT_IMPLICATIONS: [(Check, Check); 6] = [
+    (Check::Tree, Check::Forest),
+    (Check::Forest, Check::Cactus),
+    (Check::Forest, Check::Chordal),
+    (Check::Forest, Check::Bipartite),
+    (Check::Cactus, Check::Outerplanar),
+    (Check::Outerplanar, Check::Planar),
+];
+
+const DAG_EXCLUSIONS: [(Check, Check); 3] = [
+    (Check::K23Homeomorph, Check::Outerplanar),
+    (Check::K4Homeomorph, Check::Outerplanar),
+    (Check::K33Homeomorph, Check::Planar),
+];
+
 pub(super) fn write_infographic(report: &TopologyReport, path: &Path) -> Result<()> {
     let progress_bar = crate::new_spinner("write svg");
     let svg = infographic_svg(report)?;
@@ -190,7 +295,7 @@ fn infographic_svg(report: &TopologyReport) -> Result<String> {
         22.0,
     );
     let accessibility_desc = format!(
-        "Infographic summarizing {} PubChem records, with {} parsed molecules, {} parse errors, {} topology errors, and a card for each graph predicate.",
+        "Infographic summarizing {} PubChem records, with {} parsed molecules, {} parse errors, {} topology errors, an implication map for the topology predicates, and a card for each graph predicate.",
         format_count(report.total_records),
         format_count(report.parsed_records),
         format_count(report.parse_errors),
@@ -216,6 +321,12 @@ fn infographic_svg(report: &TopologyReport) -> Result<String> {
   <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
     <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#334E68" flood-opacity="0.10"/>
   </filter>
+  <marker id="dag-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+    <path d="M 0 0 L 12 6 L 0 12 z" fill="#52606D"/>
+  </marker>
+  <marker id="dag-arrow-alert" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+    <path d="M 0 0 L 12 6 L 0 12 z" fill="#B13D44"/>
+  </marker>
   <style>
     text {{
       font-family: 'IBM Plex Sans', 'Source Sans 3', 'Segoe UI', sans-serif;
@@ -230,7 +341,8 @@ fn infographic_svg(report: &TopologyReport) -> Result<String> {
     .abstract {{ font-size: 18px; fill: #334E68; }}
     .muted {{ font-size: 18px; fill: #7B8794; }}
     .panel-title {{ font-size: 22px; font-weight: 720; fill: #102A43; }}
-    .panel-note {{ font-size: 16px; fill: #7B8794; }}
+    .panel-note {{ font-size: 15px; fill: #7B8794; }}
+    .dag-label {{ font-size: 20px; font-weight: 720; fill: #102A43; }}
     .hist-label {{ font-size: 15px; fill: #52606D; }}
     .hist-value {{ font-size: 14px; fill: #52606D; }}
     .card-title {{ font-size: 30px; font-weight: 760; fill: #102A43; }}
@@ -284,6 +396,7 @@ fn infographic_svg(report: &TopologyReport) -> Result<String> {
         &abstract_lines,
     ));
     svg.push_str(&render_component_histograms(report));
+    svg.push_str(&render_implication_dag());
 
     for (index, spec) in CARD_SPECS.iter().enumerate() {
         let row = index / 2;
@@ -396,6 +509,224 @@ fn render_component_histograms(report: &TopologyReport) -> String {
             "#A5503A",
             "Defined for connected molecules only.",
         ),
+    )
+}
+
+fn render_implication_dag() -> String {
+    let direct_edges = DAG_DIRECT_IMPLICATIONS
+        .iter()
+        .map(|(from, to)| {
+            render_dag_direct_edge(
+                dag_node_spec(*from),
+                dag_node_spec(*to),
+                "#52606D",
+                "url(#dag-arrow)",
+                3.0,
+                0.94,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let exclusion_edges = DAG_EXCLUSIONS
+        .iter()
+        .map(|(from, to)| {
+            render_dag_exclusion_edge(
+                dag_node_spec(*from),
+                dag_node_spec(*to),
+                "#B13D44",
+                "url(#dag-arrow-alert)",
+                2.3,
+                0.9,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let topology_nodes = DAG_TOPOLOGY_NODES
+        .iter()
+        .map(render_dag_node)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let obstruction_nodes = DAG_OBSTRUCTION_NODES
+        .iter()
+        .map(render_dag_node)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        r##"<g transform="translate({PAGE_MARGIN} {DAG_SECTION_Y})">
+  <rect width="{CONTENT_WIDTH}" height="{DAG_PANEL_HEIGHT}" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
+  <rect width="{CONTENT_WIDTH}" height="10" rx="28" fill="url(#hero-gradient)"/>
+  <text x="32" y="40" class="panel-title">Implication map</text>
+  <text x="32" y="62" class="panel-note">Read dark arrows as direct implications. Dashed red arrows mark forbidden subdivisions for the class above.</text>
+  <g transform="translate({DAG_GRAPH_OFFSET_X} {DAG_GRAPH_OFFSET_Y})">
+    <text x="1140" y="278" text-anchor="middle" class="panel-note">Forbidden subdivisions</text>
+    {direct_edges}
+    {exclusion_edges}
+    {topology_nodes}
+    {obstruction_nodes}
+  </g>
+  <g transform="translate({DAG_LEGEND_X} {DAG_LEGEND_Y})">
+    <line x1="0" y1="0" x2="44" y2="0" stroke="#52606D" stroke-width="3.0" stroke-linecap="round" marker-end="url(#dag-arrow)"/>
+    <text x="56" y="6" class="panel-note">direct</text>
+    <line x1="176" y1="0" x2="220" y2="0" stroke="#B13D44" stroke-width="2.3" stroke-linecap="round" stroke-dasharray="10 8" marker-end="url(#dag-arrow-alert)"/>
+    <text x="232" y="6" class="panel-note">forbids</text>
+  </g>
+</g>
+"##,
+        direct_edges = direct_edges,
+        exclusion_edges = exclusion_edges,
+        topology_nodes = topology_nodes,
+        obstruction_nodes = obstruction_nodes,
+    )
+}
+
+fn render_dag_node(node: &DagNodeSpec) -> String {
+    let accent = card_spec_for(node.check).accent;
+    let fill_opacity = if is_obstruction_check(node.check) {
+        "0.10"
+    } else {
+        "0.08"
+    };
+    let stroke_opacity = if is_obstruction_check(node.check) {
+        "0.44"
+    } else {
+        "0.36"
+    };
+
+    format!(
+        r##"<g>
+  <rect x="{x}" y="{y}" width="{width}" height="{height}" rx="18" fill="{accent}" fill-opacity="{fill_opacity}" stroke="{accent}" stroke-opacity="{stroke_opacity}" stroke-width="2"/>
+  {label}
+</g>"##,
+        x = node.x,
+        y = node.y,
+        width = node.width,
+        height = node.height,
+        accent = accent,
+        fill_opacity = fill_opacity,
+        stroke_opacity = stroke_opacity,
+        label = render_card_label(
+            node.x + node.width / 2,
+            node.y + node.height / 2 + 7,
+            "middle",
+            "dag-label",
+            dag_node_label(node.check),
+            accent,
+        ),
+    )
+}
+
+fn render_dag_direct_edge(
+    from: &DagNodeSpec,
+    to: &DagNodeSpec,
+    stroke: &str,
+    marker: &str,
+    stroke_width: f64,
+    opacity: f64,
+) -> String {
+    let from_center_x = (from.x + from.width / 2) as f64;
+    let to_center_x = (to.x + to.width / 2) as f64;
+    let path = if from.y == to.y {
+        let y = (from.y + from.height / 2) as f64;
+        let x1 = (from.x + from.width) as f64;
+        let x2 = to.x as f64;
+        format!("M {x1:.2} {y:.2} H {x2:.2}")
+    } else if (from_center_x - to_center_x).abs() < 1.0 {
+        if to.y < from.y {
+            let y1 = from.y as f64;
+            let y2 = (to.y + to.height) as f64;
+            format!("M {from_center_x:.2} {y1:.2} V {y2:.2}")
+        } else {
+            let y1 = (from.y + from.height) as f64;
+            let y2 = to.y as f64;
+            format!("M {from_center_x:.2} {y1:.2} V {y2:.2}")
+        }
+    } else {
+        let x1 = (from.x + from.width) as f64;
+        let y1 = (from.y + from.height / 2) as f64;
+        let x2 = to.x as f64;
+        let y2 = (to.y + to.height / 2) as f64;
+        let elbow_x = x1 + ((x2 - x1) * 0.44).clamp(40.0, 96.0);
+        format!("M {x1:.2} {y1:.2} H {elbow_x:.2} V {y2:.2} H {x2:.2}")
+    };
+
+    format!(
+        r##"<path d="{path}" fill="none" stroke="{stroke}" stroke-width="{stroke_width:.2}" stroke-opacity="{opacity:.2}" stroke-linecap="round" stroke-linejoin="round" marker-end="{marker}"/>"##,
+        path = path,
+        stroke = stroke,
+        stroke_width = stroke_width,
+        opacity = opacity,
+        marker = marker,
+    )
+}
+
+fn render_dag_exclusion_edge(
+    from: &DagNodeSpec,
+    to: &DagNodeSpec,
+    stroke: &str,
+    marker: &str,
+    stroke_width: f64,
+    opacity: f64,
+) -> String {
+    let x = (from.x + from.width / 2) as f64;
+    let y1 = from.y as f64;
+    let y2 = (to.y + to.height) as f64;
+
+    format!(
+        r##"<path d="M {x:.2} {y1:.2} V {y2:.2}" fill="none" stroke="{stroke}" stroke-width="{stroke_width:.2}" stroke-opacity="{opacity:.2}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 8" marker-end="{marker}"/>"##,
+        x = x,
+        y1 = y1,
+        y2 = y2,
+        stroke = stroke,
+        stroke_width = stroke_width,
+        opacity = opacity,
+        marker = marker,
+    )
+}
+
+fn dag_node_label(check: Check) -> &'static str {
+    match check {
+        Check::K23Homeomorph => "K2,3",
+        Check::K33Homeomorph => "K3,3",
+        Check::K4Homeomorph => "K4",
+        _ => card_spec_for(check).title,
+    }
+}
+
+fn card_spec_for(check: Check) -> &'static CardSpec {
+    match check {
+        Check::Tree => &CARD_SPECS[0],
+        Check::Forest => &CARD_SPECS[1],
+        Check::Cactus => &CARD_SPECS[2],
+        Check::Chordal => &CARD_SPECS[3],
+        Check::Planar => &CARD_SPECS[4],
+        Check::Outerplanar => &CARD_SPECS[5],
+        Check::K23Homeomorph => &CARD_SPECS[6],
+        Check::K33Homeomorph => &CARD_SPECS[7],
+        Check::K4Homeomorph => &CARD_SPECS[8],
+        Check::Bipartite => &CARD_SPECS[9],
+    }
+}
+
+fn dag_node_spec(check: Check) -> &'static DagNodeSpec {
+    match check {
+        Check::Tree => &DAG_TOPOLOGY_NODES[0],
+        Check::Forest => &DAG_TOPOLOGY_NODES[1],
+        Check::Cactus => &DAG_TOPOLOGY_NODES[2],
+        Check::Chordal => &DAG_TOPOLOGY_NODES[3],
+        Check::Bipartite => &DAG_TOPOLOGY_NODES[4],
+        Check::Outerplanar => &DAG_TOPOLOGY_NODES[5],
+        Check::Planar => &DAG_TOPOLOGY_NODES[6],
+        Check::K23Homeomorph => &DAG_OBSTRUCTION_NODES[0],
+        Check::K4Homeomorph => &DAG_OBSTRUCTION_NODES[1],
+        Check::K33Homeomorph => &DAG_OBSTRUCTION_NODES[2],
+    }
+}
+
+fn is_obstruction_check(check: Check) -> bool {
+    matches!(
+        check,
+        Check::K23Homeomorph | Check::K33Homeomorph | Check::K4Homeomorph
     )
 }
 
@@ -1228,6 +1559,9 @@ mod tests {
         assert!(svg.contains("Homeomorph"));
         assert!(svg.contains("Connected components"));
         assert!(svg.contains("Diameter"));
+        assert!(svg.contains("Implication map"));
+        assert!(svg.contains("Forbidden subdivisions"));
+        assert!(svg.contains("direct"));
         assert!(svg.contains(env!("CARGO_PKG_REPOSITORY")));
         assert!(svg.contains("in 97.0 s."));
         assert!(svg.contains(r#"baseline-shift="-18%""#));

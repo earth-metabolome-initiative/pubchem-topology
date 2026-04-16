@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1600" height="2256" viewBox="0 0 1600 2256" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1600" height="2694" viewBox="0 0 1600 2694" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="title desc">
 <title id="title">PubChem Molecular Topology</title>
-<desc id="desc">Infographic summarizing 123,853,571 PubChem records, with 123,853,571 parsed molecules, 0 parse errors, 0 topology errors, and a card for each graph predicate.</desc>
+<desc id="desc">Infographic summarizing 123,853,571 PubChem records, with 123,853,571 parsed molecules, 0 parse errors, 0 topology errors, an implication map for the topology predicates, and a card for each graph predicate.</desc>
 <defs>
   <linearGradient id="page-gradient" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0%" stop-color="#F5EFE4"/>
@@ -15,6 +15,12 @@
   <filter id="card-shadow" x="-20%" y="-20%" width="140%" height="140%">
     <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#334E68" flood-opacity="0.10"/>
   </filter>
+  <marker id="dag-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+    <path d="M 0 0 L 12 6 L 0 12 z" fill="#52606D"/>
+  </marker>
+  <marker id="dag-arrow-alert" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+    <path d="M 0 0 L 12 6 L 0 12 z" fill="#B13D44"/>
+  </marker>
   <style>
     text {
       font-family: 'IBM Plex Sans', 'Source Sans 3', 'Segoe UI', sans-serif;
@@ -29,7 +35,8 @@
     .abstract { font-size: 18px; fill: #334E68; }
     .muted { font-size: 18px; fill: #7B8794; }
     .panel-title { font-size: 22px; font-weight: 720; fill: #102A43; }
-    .panel-note { font-size: 16px; fill: #7B8794; }
+    .panel-note { font-size: 15px; fill: #7B8794; }
+    .dag-label { font-size: 20px; font-weight: 720; fill: #102A43; }
     .hist-label { font-size: 15px; fill: #52606D; }
     .hist-value { font-size: 14px; fill: #52606D; }
     .card-title { font-size: 30px; font-weight: 760; fill: #102A43; }
@@ -41,7 +48,7 @@
     .mono { font-family: 'IBM Plex Mono', 'SFMono-Regular', monospace; font-size: 18px; fill: #334E68; }
   </style>
 </defs>
-<rect width="1600" height="2256" fill="url(#page-gradient)"/>
+<rect width="1600" height="2694" fill="url(#page-gradient)"/>
 <circle cx="1400" cy="160" r="190" fill="#C46A2D" opacity="0.08"/>
 <circle cx="124" cy="2160" r="180" fill="#1B7288" opacity="0.06"/>
 <circle cx="1470" cy="2232" r="110" fill="#0E9683" opacity="0.08"/>
@@ -51,7 +58,7 @@
   <rect width="1472" height="10" rx="30" fill="url(#hero-gradient)"/>
 </g>
 <text x="122" y="298" class="abstract" textLength="1356" lengthAdjust="spacing"><tspan font-weight="760" fill="#243B53">PubChem Molecular Topology</tspan> provides a reproducible workflow for graph-theoretic annotation of molecular structures in PubChem. In the current CID-SMILES</text>
-<text x="122" y="321" class="abstract" textLength="1356" lengthAdjust="spacing">release, 123,853,571 compounds were downloaded, decompressed, parsed, and evaluated in 133.0 s with no parsing or topology failures. The release contained</text>
+<text x="122" y="321" class="abstract" textLength="1356" lengthAdjust="spacing">release, 123,853,571 compounds were downloaded, decompressed, parsed, and evaluated in 124.3 s with no parsing or topology failures. The release contained</text>
 <text x="122" y="344" class="abstract" textLength="1356" lengthAdjust="spacing">123,850,207 planar graphs, 118,397,287 outerplanar graphs, 76,252,136 cactus graphs, 51,699,282 bipartite graphs, 5,456,025 <tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">2</tspan><tspan baseline-shift="-18%" font-size="48%">,</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan> homeomorphs, 2,221,721 <tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">4</tspan></text>
 <text x="122" y="367" class="abstract" textLength="1356" lengthAdjust="spacing">homeomorphs, and 3,337 <tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan><tspan baseline-shift="-18%" font-size="48%">,</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan> homeomorphs. Per-CID boolean annotations were written to Parquet, and connected-component counts plus exact diameters for</text>
 <text x="122" y="390" class="abstract" textLength="1356" lengthAdjust="spacing">connected molecules were stored alongside them, where the diameter is the longest of the shortest paths, while aggregate summaries were accumulated in the</text>
@@ -118,6 +125,70 @@
 </g>
 </g>
 <g transform="translate(64 650)">
+  <rect width="1472" height="390" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
+  <rect width="1472" height="10" rx="28" fill="url(#hero-gradient)"/>
+  <text x="32" y="40" class="panel-title">Implication map</text>
+  <text x="32" y="62" class="panel-note">Read dark arrows as direct implications. Dashed red arrows mark forbidden subdivisions for the class above.</text>
+  <g transform="translate(17 12)">
+    <text x="1140" y="278" text-anchor="middle" class="panel-note">Forbidden subdivisions</text>
+    <path d="M 228.00 196.00 H 326.00" fill="none" stroke="#52606D" stroke-width="3.00" stroke-opacity="0.94" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#dag-arrow)"/>
+<path d="M 502.00 196.00 H 590.00" fill="none" stroke="#52606D" stroke-width="3.00" stroke-opacity="0.94" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#dag-arrow)"/>
+<path d="M 414.00 164.00 V 136.00" fill="none" stroke="#52606D" stroke-width="3.00" stroke-opacity="0.94" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#dag-arrow)"/>
+<path d="M 414.00 228.00 V 256.00" fill="none" stroke="#52606D" stroke-width="3.00" stroke-opacity="0.94" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#dag-arrow)"/>
+<path d="M 766.00 196.00 H 878.00" fill="none" stroke="#52606D" stroke-width="3.00" stroke-opacity="0.94" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#dag-arrow)"/>
+<path d="M 1094.00 196.00 H 1190.00" fill="none" stroke="#52606D" stroke-width="3.00" stroke-opacity="0.94" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#dag-arrow)"/>
+    <path d="M 934.00 298.00 V 228.00" fill="none" stroke="#B13D44" stroke-width="2.30" stroke-opacity="0.90" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 8" marker-end="url(#dag-arrow-alert)"/>
+<path d="M 1038.00 298.00 V 228.00" fill="none" stroke="#B13D44" stroke-width="2.30" stroke-opacity="0.90" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 8" marker-end="url(#dag-arrow-alert)"/>
+<path d="M 1268.00 298.00 V 228.00" fill="none" stroke="#B13D44" stroke-width="2.30" stroke-opacity="0.90" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 8" marker-end="url(#dag-arrow-alert)"/>
+    <g>
+  <rect x="92" y="164" width="136" height="64" rx="18" fill="#2F6F65" fill-opacity="0.08" stroke="#2F6F65" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="160" y="203" text-anchor="middle" class="dag-label" fill="#2F6F65">Tree</text>
+</g>
+<g>
+  <rect x="326" y="164" width="176" height="64" rx="18" fill="#5A8F42" fill-opacity="0.08" stroke="#5A8F42" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="414" y="203" text-anchor="middle" class="dag-label" fill="#5A8F42">Forest</text>
+</g>
+<g>
+  <rect x="590" y="164" width="176" height="64" rx="18" fill="#C46A2D" fill-opacity="0.08" stroke="#C46A2D" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="678" y="203" text-anchor="middle" class="dag-label" fill="#C46A2D">Cactus</text>
+</g>
+<g>
+  <rect x="324" y="72" width="180" height="64" rx="18" fill="#A5503A" fill-opacity="0.08" stroke="#A5503A" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="414" y="111" text-anchor="middle" class="dag-label" fill="#A5503A">Chordal</text>
+</g>
+<g>
+  <rect x="310" y="256" width="208" height="64" rx="18" fill="#3856A6" fill-opacity="0.08" stroke="#3856A6" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="414" y="295" text-anchor="middle" class="dag-label" fill="#3856A6">Bipartite</text>
+</g>
+<g>
+  <rect x="878" y="164" width="216" height="64" rx="18" fill="#0E9683" fill-opacity="0.08" stroke="#0E9683" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="986" y="203" text-anchor="middle" class="dag-label" fill="#0E9683">Outerplanar</text>
+</g>
+<g>
+  <rect x="1190" y="164" width="156" height="64" rx="18" fill="#1B7288" fill-opacity="0.08" stroke="#1B7288" stroke-opacity="0.36" stroke-width="2"/>
+  <text x="1268" y="203" text-anchor="middle" class="dag-label" fill="#1B7288">Planar</text>
+</g>
+    <g>
+  <rect x="882" y="298" width="104" height="46" rx="18" fill="#A35C17" fill-opacity="0.10" stroke="#A35C17" stroke-opacity="0.44" stroke-width="2"/>
+  <text x="934" y="328" text-anchor="middle" class="dag-label" fill="#A35C17"><tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">2</tspan><tspan baseline-shift="-18%" font-size="48%">,</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan></text>
+</g>
+<g>
+  <rect x="998" y="298" width="80" height="46" rx="18" fill="#7D3A1B" fill-opacity="0.10" stroke="#7D3A1B" stroke-opacity="0.44" stroke-width="2"/>
+  <text x="1038" y="328" text-anchor="middle" class="dag-label" fill="#7D3A1B"><tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">4</tspan></text>
+</g>
+<g>
+  <rect x="1216" y="298" width="104" height="46" rx="18" fill="#B13D44" fill-opacity="0.10" stroke="#B13D44" stroke-opacity="0.44" stroke-width="2"/>
+  <text x="1268" y="328" text-anchor="middle" class="dag-label" fill="#B13D44"><tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan><tspan baseline-shift="-18%" font-size="48%">,</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan></text>
+</g>
+  </g>
+  <g transform="translate(1148 44)">
+    <line x1="0" y1="0" x2="44" y2="0" stroke="#52606D" stroke-width="3.0" stroke-linecap="round" marker-end="url(#dag-arrow)"/>
+    <text x="56" y="6" class="panel-note">direct</text>
+    <line x1="176" y1="0" x2="220" y2="0" stroke="#B13D44" stroke-width="2.3" stroke-linecap="round" stroke-dasharray="10 8" marker-end="url(#dag-arrow-alert)"/>
+    <text x="232" y="6" class="panel-note">forbids</text>
+  </g>
+</g>
+<g transform="translate(64 1068)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#2F6F65"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#2F6F65" stroke-opacity="0.16"/>
@@ -148,7 +219,7 @@
   <text x="196" y="210" class="card-body">Connected and acyclic, with n-1 edges and one simple</text>
 <text x="196" y="234" class="card-body">path between any two vertices.</text>
 </g>
-<g transform="translate(816 650)">
+<g transform="translate(816 1068)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#5A8F42"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#5A8F42" stroke-opacity="0.16"/>
@@ -191,7 +262,7 @@
   <text x="196" y="210" class="card-body">A disjoint union of trees: acyclic overall, but not required</text>
 <text x="196" y="234" class="card-body">to form one connected component.</text>
 </g>
-<g transform="translate(64 950)">
+<g transform="translate(64 1368)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#C46A2D"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#C46A2D" stroke-opacity="0.16"/>
@@ -219,7 +290,7 @@
   <text x="196" y="210" class="card-body">Each edge lies on at most one simple cycle, so cycles</text>
 <text x="196" y="234" class="card-body">can meet only at articulation vertices.</text>
 </g>
-<g transform="translate(816 950)">
+<g transform="translate(816 1368)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#A5503A"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#A5503A" stroke-opacity="0.16"/>
@@ -248,7 +319,7 @@
   <text x="196" y="210" class="card-body">Every cycle of length at least four has a chord, excluding</text>
 <text x="196" y="234" class="card-body">induced long cycles.</text>
 </g>
-<g transform="translate(64 1250)">
+<g transform="translate(64 1668)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#1B7288"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#1B7288" stroke-opacity="0.16"/>
@@ -281,7 +352,7 @@
   <text x="196" y="210" class="card-body">Can be embedded in the plane with no edge crossings</text>
 <text x="196" y="234" class="card-body">after redrawing if needed.</text>
 </g>
-<g transform="translate(816 1250)">
+<g transform="translate(816 1668)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#0E9683"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#0E9683" stroke-opacity="0.16"/>
@@ -313,7 +384,7 @@
   <rect x="196" y="168" width="449" height="12" rx="6" fill="#0E9683" fill-opacity="1.0"/>
   <text x="196" y="210" class="card-body">Planar and drawable with every vertex on the outer face.</text>
 </g>
-<g transform="translate(64 1550)">
+<g transform="translate(64 1968)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#A35C17"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#A35C17" stroke-opacity="0.16"/>
@@ -347,7 +418,7 @@
   <text x="196" y="210" class="card-body">Contains a subdivision of <tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">2</tspan><tspan baseline-shift="-18%" font-size="48%">,</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan>, a classical obstruction to</text>
 <text x="196" y="234" class="card-body">outerplanarity.</text>
 </g>
-<g transform="translate(816 1550)">
+<g transform="translate(816 1968)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#B13D44"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#B13D44" stroke-opacity="0.16"/>
@@ -384,7 +455,7 @@
   <text x="196" y="210" class="card-body">Contains a subdivision of <tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan><tspan baseline-shift="-18%" font-size="48%">,</tspan><tspan baseline-shift="-18%" font-size="72%">3</tspan>, a Kuratowski obstruction</text>
 <text x="196" y="234" class="card-body">proving nonplanarity.</text>
 </g>
-<g transform="translate(64 1850)">
+<g transform="translate(64 2268)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#7D3A1B"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#7D3A1B" stroke-opacity="0.16"/>
@@ -414,7 +485,7 @@
   <text x="196" y="210" class="card-body">Contains a subdivision of <tspan>K</tspan><tspan baseline-shift="-18%" font-size="72%">4</tspan>, another standard</text>
 <text x="196" y="234" class="card-body">obstruction to outerplanarity.</text>
 </g>
-<g transform="translate(816 1850)">
+<g transform="translate(816 2268)">
   <rect width="720" height="272" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
   <rect width="720" height="12" rx="28" fill="#3856A6"/>
   <rect x="22" y="42" width="160" height="160" rx="22" fill="#F7F4EA" stroke="#3856A6" stroke-opacity="0.16"/>
@@ -451,8 +522,8 @@
   <text x="196" y="210" class="card-body">Vertices split into two partitions, with edges only across</text>
 <text x="196" y="234" class="card-body">the split and no odd cycle.</text>
 </g>
-<g transform="translate(64 2168)">
+<g transform="translate(64 2586)">
   <line x1="0" y1="0" x2="1472" y2="0" stroke="#D9E2EC" stroke-width="2"/>
-  <text x="736" y="28" text-anchor="middle" class="muted">https://github.com/earth-metabolome-initiative/pubchem-topology  •  commit 122612368407  •  2026-04-15</text>
+  <text x="736" y="28" text-anchor="middle" class="muted">https://github.com/earth-metabolome-initiative/pubchem-topology  •  commit 1ac1e607fc4e  •  2026-04-16</text>
 </g>
 </svg>
