@@ -7,7 +7,6 @@ pre_compress = true
 
 [web.app]
 title = "PubChem Molecular Topology Explorer"
-base_path = "pubchem-topology"
 
 [web.resource]
 style = ["https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"]
