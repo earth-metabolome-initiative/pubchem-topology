@@ -790,10 +790,10 @@ fn count_pubchem_records(path: &Path) -> Result<u64> {
         last_byte = Some(buffer[bytes_read - 1]);
     }
 
-    if let Some(byte) = last_byte {
-        if byte != b'\n' {
-            rows += 1;
-        }
+    if let Some(byte) = last_byte
+        && byte != b'\n'
+    {
+        rows += 1;
     }
 
     progress_bar.finish_with_message(format!("count rows     {}", path.display()));
@@ -985,10 +985,10 @@ fn parse_pubchem_record(record: &str) -> Option<(&str, &str)> {
         return None;
     }
 
-    if let Some((cid, smiles)) = trimmed.split_once('\t') {
-        if !cid.is_empty() && !smiles.is_empty() {
-            return Some((cid, smiles));
-        }
+    if let Some((cid, smiles)) = trimmed.split_once('\t')
+        && !cid.is_empty() && !smiles.is_empty()
+    {
+        return Some((cid, smiles));
     }
 
     let mut fields = trimmed.split_whitespace();

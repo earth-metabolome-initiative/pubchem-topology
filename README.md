@@ -17,6 +17,21 @@ The Parquet artifact stores one row per PubChem CID with this schema:
 `chordal`, `planar`, `outerplanar`, `k23_homeomorph`, `k33_homeomorph`,
 `k4_homeomorph`, `bipartite`.
 
+Topology columns:
+
+| column | graph class |
+| --- | --- |
+| `tree` | [tree](https://en.wikipedia.org/wiki/Tree_%28graph_theory%29) |
+| `forest` | [forest](https://en.wikipedia.org/wiki/Tree_%28graph_theory%29#Forest) |
+| `cactus` | [cactus graph](https://en.wikipedia.org/wiki/Cactus_graph) |
+| `chordal` | [chordal graph](https://en.wikipedia.org/wiki/Chordal_graph) |
+| `planar` | [planar graph](https://en.wikipedia.org/wiki/Planar_graph) |
+| `outerplanar` | [outerplanar graph](https://en.wikipedia.org/wiki/Outerplanar_graph) |
+| `k23_homeomorph` | subdivision of [`K2,3`](https://en.wikipedia.org/wiki/Complete_bipartite_graph) |
+| `k33_homeomorph` | subdivision of [`K3,3`](https://en.wikipedia.org/wiki/Complete_bipartite_graph) |
+| `k4_homeomorph` | subdivision of [`K4`](https://en.wikipedia.org/wiki/Complete_graph) |
+| `bipartite` | [bipartite graph](https://en.wikipedia.org/wiki/Bipartite_graph) |
+
 Example values sampled from the current production dataset:
 
 | cid | connected_components | diameter | tree | forest | cactus | chordal | planar | outerplanar | k23_homeomorph | k33_homeomorph | k4_homeomorph | bipartite |

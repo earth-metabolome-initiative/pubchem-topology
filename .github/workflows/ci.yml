@@ -27,6 +27,13 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Link check
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress README.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Format
         run: cargo fmt --check
 

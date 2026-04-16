@@ -573,10 +573,6 @@ fn render_implication_dag() -> String {
   </g>
 </g>
 "##,
-        direct_edges = direct_edges,
-        exclusion_edges = exclusion_edges,
-        topology_nodes = topology_nodes,
-        obstruction_nodes = obstruction_nodes,
     )
 }
 
@@ -652,11 +648,6 @@ fn render_dag_direct_edge(
 
     format!(
         r##"<path d="{path}" fill="none" stroke="{stroke}" stroke-width="{stroke_width:.2}" stroke-opacity="{opacity:.2}" stroke-linecap="round" stroke-linejoin="round" marker-end="{marker}"/>"##,
-        path = path,
-        stroke = stroke,
-        stroke_width = stroke_width,
-        opacity = opacity,
-        marker = marker,
     )
 }
 
@@ -674,13 +665,6 @@ fn render_dag_exclusion_edge(
 
     format!(
         r##"<path d="M {x:.2} {y1:.2} V {y2:.2}" fill="none" stroke="{stroke}" stroke-width="{stroke_width:.2}" stroke-opacity="{opacity:.2}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 8" marker-end="{marker}"/>"##,
-        x = x,
-        y1 = y1,
-        y2 = y2,
-        stroke = stroke,
-        stroke_width = stroke_width,
-        opacity = opacity,
-        marker = marker,
     )
 }
 
