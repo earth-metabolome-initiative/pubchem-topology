@@ -260,7 +260,10 @@ fn classification_json(
 ) -> Result<String, serde_json::Error> {
     let mut checks = Map::new();
     for check in Check::ALL {
-        checks.insert(check.name().to_owned(), Value::Bool(classification.check(check)));
+        checks.insert(
+            check.name().to_owned(),
+            Value::Bool(classification.check(check)),
+        );
     }
 
     serde_json::to_string_pretty(&json!({
