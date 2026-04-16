@@ -45,4 +45,4 @@ cd apps/topology-web
 dx serve --platform web
 ```
 
-The app is configured for GitHub Pages deployment at `https://earth-metabolome-initiative.github.io/pubchem-topology/`.
+The app is configured for GitHub Pages deployment at <https://topology.earthmetabolome.org/>.
