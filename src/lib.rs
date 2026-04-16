@@ -26,21 +26,19 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt16Array, UInt32Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use dotenvy::dotenv;
 use flate2::read::MultiGzDecoder;
-use geometric_traits::traits::{
-    BipartiteDetection, CactusDetection, ChordalDetection, Diameter, K4HomeomorphDetection,
-    K23HomeomorphDetection, K33HomeomorphDetection, OuterplanarityDetection, PlanarityDetection,
-    TreeDetection,
-};
 use indicatif::{ProgressBar, ProgressStyle};
 use parquet::{arrow::ArrowWriter, basic::Compression, file::properties::WriterProperties};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use smiles_parser::smiles::Smiles;
+pub use topology_classifier::{CHECK_COUNT, Check};
+use topology_classifier::{
+    Smiles, TopologyClassification, classify_smiles as classify_topology_smiles,
+};
 use zenodo_rs::{
     AccessRight, Creator, DepositMetadataUpdate, DepositionId, FileReplacePolicy, UploadSpec,
     UploadType, ZenodoClient,
@@ -65,34 +63,6 @@ const ITEMS_PROGRESS_TEMPLATE: &str =
     "{msg:14} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} ({eta})";
 const SPINNER_PROGRESS_TEMPLATE: &str = "{msg:14} [{elapsed_precise}] {spinner}";
 
-#[repr(usize)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Boolean topology checks emitted per molecule.
-pub enum Check {
-    /// Whether the topology is a tree.
-    Tree = 0,
-    /// Whether the topology is a forest.
-    Forest = 1,
-    /// Whether the topology is a cactus graph.
-    Cactus = 2,
-    /// Whether the topology is chordal.
-    Chordal = 3,
-    /// Whether the topology is planar.
-    Planar = 4,
-    /// Whether the topology is outerplanar.
-    Outerplanar = 5,
-    /// Whether the topology contains a `K2,3` homeomorph.
-    K23Homeomorph = 6,
-    /// Whether the topology contains a `K3,3` homeomorph.
-    K33Homeomorph = 7,
-    /// Whether the topology contains a `K4` homeomorph.
-    K4Homeomorph = 8,
-    /// Whether the topology is bipartite.
-    Bipartite = 9,
-}
-
-/// Total number of emitted topology checks.
-pub const CHECK_COUNT: usize = 10;
 const BOOL_COLUMN_COUNT: u64 = CHECK_COUNT as u64;
 const COMPONENT_COLUMN_COUNT: u64 = 2;
 
@@ -112,38 +82,6 @@ pub struct ScalarHistogramBin {
     pub value: u16,
     /// Number of molecules with exactly this value.
     pub molecules: u64,
-}
-
-impl Check {
-    /// Checks in the same order used by the count array and Parquet columns.
-    pub const ALL: [Self; CHECK_COUNT] = [
-        Self::Tree,
-        Self::Forest,
-        Self::Cactus,
-        Self::Chordal,
-        Self::Planar,
-        Self::Outerplanar,
-        Self::K23Homeomorph,
-        Self::K33Homeomorph,
-        Self::K4Homeomorph,
-        Self::Bipartite,
-    ];
-
-    /// Stable column and count label for the check.
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Tree => "tree",
-            Self::Forest => "forest",
-            Self::Cactus => "cactus",
-            Self::Chordal => "chordal",
-            Self::Planar => "planar",
-            Self::Outerplanar => "outerplanar",
-            Self::K23Homeomorph => "k23_homeomorph",
-            Self::K33Homeomorph => "k33_homeomorph",
-            Self::K4Homeomorph => "k4_homeomorph",
-            Self::Bipartite => "bipartite",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -393,13 +331,6 @@ impl Default for RowClassification {
 struct BatchOutput {
     rows: Vec<RowClassification>,
     stats: BatchStats,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct ClassificationMetrics {
-    checks: [bool; CHECK_COUNT],
-    connected_components: u16,
-    diameter: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -867,12 +798,12 @@ fn process_batch(batch: Vec<String>) -> BatchOutput {
 }
 
 fn classify_record(record: &str) -> RowClassification {
-    classify_record_with(record, classify_smiles)
+    classify_record_with(record, classify_topology_smiles)
 }
 
-fn classify_record_with<F>(record: &str, classify: F) -> RowClassification
+fn classify_record_with<F, E>(record: &str, classify: F) -> RowClassification
 where
-    F: Fn(&Smiles) -> Result<ClassificationMetrics>,
+    F: Fn(&Smiles) -> std::result::Result<TopologyClassification, E>,
 {
     let Some((cid_text, smiles_text)) = parse_pubchem_record(record) else {
         return RowClassification::default();
@@ -894,12 +825,12 @@ where
     };
 
     match classify(&smiles) {
-        Ok(metrics) => RowClassification {
+        Ok(classification) => RowClassification {
             cid,
             state: RowState::Success,
-            checks: metrics.checks,
-            connected_components: metrics.connected_components,
-            diameter: metrics.diameter,
+            checks: classification.checks,
+            connected_components: classification.connected_components,
+            diameter: classification.diameter.unwrap_or(0),
         },
         Err(_) => RowClassification {
             cid,
@@ -909,74 +840,6 @@ where
             diameter: 0,
         },
     }
-}
-
-fn classify_smiles(smiles: &Smiles) -> Result<ClassificationMetrics> {
-    let connected_components = u16::try_from(smiles.connected_components().number_of_components())
-        .map_err(|_| anyhow!("too many connected components to fit in u16"))?;
-    let diameter = if connected_components == 1 {
-        u16::try_from(
-            smiles
-                .diameter()
-                .map_err(|error| anyhow!("diameter failed: {error}"))?,
-        )
-        .map_err(|_| anyhow!("diameter does not fit in u16"))?
-    } else {
-        0
-    };
-    let is_tree = smiles.is_tree();
-    let is_forest = if is_tree { true } else { smiles.is_forest() };
-    let is_cactus = if is_forest { true } else { smiles.is_cactus() };
-    let is_chordal = smiles.is_chordal();
-    let is_planar = smiles
-        .is_planar()
-        .map_err(|error| anyhow!("planarity detection failed: {error}"))?;
-    let is_outerplanar = if is_planar {
-        smiles
-            .is_outerplanar()
-            .map_err(|error| anyhow!("outerplanarity detection failed: {error}"))?
-    } else {
-        false
-    };
-    let has_k23_homeomorph = if is_outerplanar {
-        false
-    } else {
-        smiles
-            .has_k23_homeomorph()
-            .map_err(|error| anyhow!("K23 detection failed: {error}"))?
-    };
-    let has_k33_homeomorph = if is_planar {
-        false
-    } else {
-        smiles
-            .has_k33_homeomorph()
-            .map_err(|error| anyhow!("K33 detection failed: {error}"))?
-    };
-    let has_k4_homeomorph = if is_outerplanar {
-        false
-    } else {
-        smiles
-            .has_k4_homeomorph()
-            .map_err(|error| anyhow!("K4 detection failed: {error}"))?
-    };
-    let is_bipartite = smiles.is_bipartite();
-
-    Ok(ClassificationMetrics {
-        checks: [
-            is_tree,
-            is_forest,
-            is_cactus,
-            is_chordal,
-            is_planar,
-            is_outerplanar,
-            has_k23_homeomorph,
-            has_k33_homeomorph,
-            has_k4_homeomorph,
-            is_bipartite,
-        ],
-        connected_components,
-        diameter,
-    })
 }
 
 fn parse_pubchem_record(record: &str) -> Option<(&str, &str)> {
@@ -1390,9 +1253,9 @@ mod tests {
     use super::{
         BatchStats, CHECK_COUNT, Check, ComponentHistogramBin, DEFAULT_BATCH_SIZE,
         DEFAULT_PARQUET_BATCH_ROWS, DEFAULT_PUBCHEM_SMILES_URL, InputMode, PipelineConfig,
-        PublishMode, RowClassification, RowState, ScalarHistogramBin, TopologyColumns,
+        PublishMode, RowClassification, RowState, ScalarHistogramBin, Smiles, TopologyColumns,
         TopologyReport, ZenodoState, build_zenodo_client, build_zenodo_metadata,
-        classify_pubchem_smiles, classify_record, classify_record_with, classify_smiles,
+        classify_pubchem_smiles, classify_record, classify_record_with, classify_topology_smiles,
         count_pubchem_records, ensure_parent_dir, estimate_result_memory_bytes, format_gibibytes,
         load_zenodo_state, missing_publication_warning, new_bytes_progress_bar,
         new_items_progress_bar, new_spinner, parquet_schema, parse_pubchem_record, prepare_input,
@@ -1592,13 +1455,13 @@ mod tests {
 
     #[test]
     fn classify_smiles_marks_ethanol_as_tree_like_and_planar() {
-        let smiles: smiles_parser::smiles::Smiles = "CCO".parse().expect("valid SMILES");
-        let metrics = classify_smiles(&smiles).expect("classification should succeed");
+        let smiles: Smiles = "CCO".parse().expect("valid SMILES");
+        let metrics = classify_topology_smiles(&smiles).expect("classification should succeed");
         let checks = metrics.checks;
 
         assert_eq!(checks.len(), CHECK_COUNT);
         assert_eq!(metrics.connected_components, 1);
-        assert_eq!(metrics.diameter, 2);
+        assert_eq!(metrics.diameter, Some(2));
         assert!(checks[Check::Tree as usize]);
         assert!(checks[Check::Forest as usize]);
         assert!(checks[Check::Cactus as usize]);
@@ -1613,9 +1476,8 @@ mod tests {
 
     #[test]
     fn classify_smiles_detects_k4_homeomorph_for_tetrahedrane_topology() {
-        let smiles: smiles_parser::smiles::Smiles =
-            "*12*3*1*23".parse().expect("valid tetrahedrane topology");
-        let metrics = classify_smiles(&smiles).expect("classification should succeed");
+        let smiles: Smiles = "*12*3*1*23".parse().expect("valid tetrahedrane topology");
+        let metrics = classify_topology_smiles(&smiles).expect("classification should succeed");
         let checks = metrics.checks;
 
         assert!(checks[Check::Planar as usize]);

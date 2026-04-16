@@ -29,10 +29,20 @@ Example values sampled from the current production dataset:
 Aggregate parse and topology failure totals are recorded in the JSON summary, not as per-row Parquet columns.
 `diameter` is populated for connected molecules; disconnected molecules are written as `null`.
 
-Reproduce the results with:
+Reproduce the batch results with:
 
 ```bash
 cp env.example .env
 # optional: set ZENODO_TOKEN in .env to publish to Zenodo
 RUSTFLAGS="-C target-cpu=native" cargo run --release
 ```
+
+Run the browser classifier locally with:
+
+```bash
+cargo install dioxus-cli --version 0.7.5 --locked
+cd apps/topology-web
+dx serve --platform web
+```
+
+The app is configured for GitHub Pages deployment at `https://earth-metabolome-initiative.github.io/pubchem-topology/`.

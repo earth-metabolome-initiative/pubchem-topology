@@ -29,3 +29,5 @@ results/review/*
 .env
 *.tmp
 .playwright-mcp
+apps/topology-web/.dioxus/
+.tmp_wasm_probe/

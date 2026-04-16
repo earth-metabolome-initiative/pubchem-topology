@@ -23,6 +23,7 @@ jobs:
         with:
           toolchain: 1.88.0
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -42,6 +43,9 @@ jobs:
 
       - name: Test
         run: cargo test --all-targets
+
+      - name: Check browser build
+        run: cargo check -p topology-web --target wasm32-unknown-unknown
 
       - name: Install Tarpaulin
         uses: taiki-e/install-action@cargo-tarpaulin

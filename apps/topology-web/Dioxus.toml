@@ -1,0 +1,22 @@
+[application]
+name = "pubchem-topology-web"
+asset_dir = "assets"
+
+[web]
+pre_compress = true
+
+[web.app]
+title = "PubChem Molecular Topology Explorer"
+base_path = "pubchem-topology"
+
+[web.resource]
+style = ["https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"]
+
+[web.resource.dev]
+
+[web.watcher]
+reload_html = true
+watch_path = ["src", "assets", "../../crates/topology-classifier/src"]
+
+[web.wasm_opt]
+level = "z"
