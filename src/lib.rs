@@ -986,7 +986,8 @@ fn parse_pubchem_record(record: &str) -> Option<(&str, &str)> {
     }
 
     if let Some((cid, smiles)) = trimmed.split_once('\t')
-        && !cid.is_empty() && !smiles.is_empty()
+        && !cid.is_empty()
+        && !smiles.is_empty()
     {
         return Some((cid, smiles));
     }
