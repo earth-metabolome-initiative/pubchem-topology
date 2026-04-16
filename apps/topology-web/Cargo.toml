@@ -21,4 +21,7 @@ unwrap_used = "deny"
 
 [dependencies]
 dioxus = { version = "0.7.5", features = ["web"] }
+serde_json = "1.0.145"
 topology-classifier = { path = "../../crates/topology-classifier" }
+wasm-bindgen-futures = "0.4.55"
+web-sys = { version = "0.3.82", features = ["Clipboard", "Navigator", "Window"] }

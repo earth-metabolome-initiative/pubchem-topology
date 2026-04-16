@@ -132,7 +132,7 @@ const PLANAR_GRAPHLET: &str = r###"<svg xmlns="http://www.w3.org/2000/svg" viewB
 </svg>
 "###;
 
-const OUTERPLANAR_GRAPHLET: &str = r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color:#364152">
+const OUTERPLANAR_GRAPHLET: &str = r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <g stroke="currentColor" stroke-width="4">
     <line x1="80" y1="24" x2="126" y2="50"/>
     <line x1="126" y1="50" x2="126" y2="110"/>

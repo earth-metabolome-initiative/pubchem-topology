@@ -101,6 +101,10 @@ textarea {
   font: inherit;
 }
 
+code {
+  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+}
+
 .page-shell {
   width: min(1160px, 100%);
   margin: 0 auto;
@@ -201,6 +205,7 @@ textarea {
 }
 
 .action-link,
+.copy-button,
 .example-card {
   transition:
     transform 140ms ease,
@@ -209,7 +214,10 @@ textarea {
     box-shadow 140ms ease;
 }
 
-.action-link {
+.action-link,
+.copy-button,
+.footer-link,
+.footer-commit {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -224,6 +232,9 @@ textarea {
 }
 
 .action-link i,
+.copy-button i,
+.footer-link i,
+.footer-commit i,
 .section-headline i,
 .metric-icon,
 .check-icon,
@@ -234,6 +245,8 @@ textarea {
 }
 
 .action-link:hover,
+.copy-button:hover,
+.footer-link:hover,
 .example-card:hover {
   transform: translateY(-1px);
 }
@@ -422,6 +435,84 @@ textarea {
   gap: 18px;
 }
 
+.result-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.result-toolbar-title {
+  margin: 2px 0 0;
+  font-size: 1.08rem;
+  line-height: 1.1;
+}
+
+.result-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.copy-button {
+  padding: 10px 16px;
+  background: linear-gradient(180deg, var(--tone-wash, rgba(31, 38, 36, 0.05)), rgba(255, 253, 248, 0.9));
+  color: var(--tone, #2f6f65);
+  cursor: pointer;
+}
+
+.copy-feedback {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  font-family: "Avenir Next Condensed", "Gill Sans", "Trebuchet MS", sans-serif;
+}
+
+.app-footer {
+  margin-top: 20px;
+  padding: 18px 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 24px;
+  background: rgba(255, 253, 248, 0.74);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+
+.footer-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.footer-text {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.footer-link,
+.footer-commit {
+  padding: 10px 14px;
+  background: linear-gradient(180deg, var(--tone-wash, rgba(31, 38, 36, 0.05)), rgba(255, 253, 248, 0.9));
+}
+
+.footer-commit code {
+  font-size: 0.84rem;
+  color: var(--tone, #2f6f65);
+}
+
 .metric-grid,
 .check-grid {
   display: grid;
@@ -557,7 +648,9 @@ textarea {
 
   .panel-head,
   .check-hero,
-  .example-topline {
+  .example-topline,
+  .result-toolbar,
+  .app-footer {
     flex-direction: column;
     align-items: stretch;
   }

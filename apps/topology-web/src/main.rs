@@ -1,12 +1,17 @@
 //! Browser-side SMILES topology explorer built with Dioxus.
 
 use dioxus::prelude::*;
+use serde_json::{Map, Value, json};
 use topology_classifier::{Check, TopologyClassification, classify_smiles_text, graphlet_svg};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const DEFAULT_SMILES: &str = "CCO";
 const REPOSITORY_URL: &str = "https://github.com/earth-metabolome-initiative/pubchem-topology";
 const ZENODO_URL: &str = "https://doi.org/10.5281/zenodo.19599330";
+const BUILD_COMMIT: &str = match option_env!("PUBCHEM_TOPOLOGY_GIT_COMMIT") {
+    Some(commit) => commit,
+    None => "unknown",
+};
 const EXAMPLES: [Example; 6] = [
     Example {
         label: "Ethanol",
@@ -115,10 +120,6 @@ fn App() -> Element {
                             smiles_text.set(value);
                         },
                     }
-                    p { class: "hint",
-                        i { class: "fa-solid fa-circle-info" }
-                        span { "Large PubChem-scale work still belongs in the batch pipeline. This utility is for quick local inspection and explanation." }
-                    }
                     div { class: "example-head",
                         p { class: "kicker", "Examples" }
                         h3 { "Diverse molecules to probe" }
@@ -150,8 +151,44 @@ fn App() -> Element {
 
                 article { class: "result-panel",
                     match current_outcome {
-                        Ok(classification) => rsx! { ResultPanel { classification } },
+                        Ok(classification) => rsx! {
+                            ResultPanel {
+                                smiles_text: current_smiles.clone(),
+                                classification,
+                            }
+                        },
                         Err(message) => rsx! { ErrorPanel { message } },
+                    }
+                }
+            }
+
+            footer { class: "app-footer",
+                div { class: "footer-copy",
+                    p { class: "kicker", "Metadata" }
+                    p { class: "footer-text",
+                        "Browser classifier for the PubChem topology workflow."
+                    }
+                }
+                div { class: "footer-links",
+                    a {
+                        class: "footer-link tone-planar",
+                        href: REPOSITORY_URL,
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                        i { class: "fa-brands fa-github" }
+                        span { "Repository" }
+                    }
+                    a {
+                        class: "footer-link tone-k23",
+                        href: ZENODO_URL,
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                        i { class: "fa-solid fa-database" }
+                        span { "Zenodo" }
+                    }
+                    div { class: "footer-commit tone-bipartite",
+                        i { class: "fa-solid fa-code-commit" }
+                        code { "{BUILD_COMMIT}" }
                     }
                 }
             }
@@ -217,8 +254,45 @@ fn GraphletFrame(check: Check) -> Element {
     }
 }
 
+fn classification_json(
+    smiles_text: &str,
+    classification: &TopologyClassification,
+) -> Result<String, serde_json::Error> {
+    let mut checks = Map::new();
+    for check in Check::ALL {
+        checks.insert(check.name().to_owned(), Value::Bool(classification.check(check)));
+    }
+
+    serde_json::to_string_pretty(&json!({
+        "smiles": smiles_text.trim(),
+        "connected_components": classification.connected_components,
+        "diameter": classification.diameter,
+        "checks": checks,
+    }))
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn copy_text_to_clipboard(text: String) -> Result<(), String> {
+    use wasm_bindgen_futures::JsFuture;
+
+    let window = web_sys::window().ok_or_else(|| "window is unavailable".to_owned())?;
+    let clipboard = window.navigator().clipboard();
+    let promise = clipboard.write_text(&text);
+    JsFuture::from(promise)
+        .await
+        .map_err(|_| "clipboard write failed".to_owned())?;
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn copy_text_to_clipboard(_text: String) -> Result<(), String> {
+    Err("clipboard is only available in the browser build".to_owned())
+}
+
 #[component]
-fn ResultPanel(classification: TopologyClassification) -> Element {
+fn ResultPanel(smiles_text: String, classification: TopologyClassification) -> Element {
+    let mut copy_feedback = use_signal(String::new);
+    let copy_feedback_text = copy_feedback();
     let diameter = classification
         .diameter
         .map(|value| value.to_string())
@@ -226,6 +300,44 @@ fn ResultPanel(classification: TopologyClassification) -> Element {
 
     rsx! {
         div { class: "result-stack",
+            div { class: "result-toolbar",
+                div {
+                    p { class: "kicker", "Export" }
+                    h2 { class: "result-toolbar-title", "Reuse this classification" }
+                }
+                div { class: "result-toolbar-actions",
+                    button {
+                        class: "copy-button tone-planar",
+                        r#type: "button",
+                        onclick: {
+                            let classification = classification.clone();
+                            let smiles_text = smiles_text.clone();
+                            move |_| {
+                                let payload = match classification_json(&smiles_text, &classification) {
+                                    Ok(payload) => payload,
+                                    Err(_) => {
+                                        copy_feedback.set("JSON serialization failed".to_owned());
+                                        return;
+                                    }
+                                };
+                                copy_feedback.set("Copying…".to_owned());
+                                spawn(async move {
+                                    let message = match copy_text_to_clipboard(payload).await {
+                                        Ok(()) => "Copied JSON to clipboard".to_owned(),
+                                        Err(error) => format!("Copy failed: {error}"),
+                                    };
+                                    copy_feedback.set(message);
+                                });
+                            }
+                        },
+                        i { class: "fa-solid fa-copy" }
+                        span { "Copy JSON" }
+                    }
+                    if !copy_feedback_text.is_empty() {
+                        p { class: "copy-feedback", "{copy_feedback_text}" }
+                    }
+                }
+            }
             div { class: "metric-grid",
                 MetricCard {
                     label: "Connected components",
