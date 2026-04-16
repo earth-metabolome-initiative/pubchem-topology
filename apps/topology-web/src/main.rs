@@ -102,16 +102,6 @@ fn App() -> Element {
                             p { class: "kicker", "SMILES input" }
                             h2 { "Classify a molecular graph" }
                         }
-                        button {
-                            class: "primary-button",
-                            r#type: "button",
-                            onclick: move |_| {
-                                let input = smiles_text.read().trim().to_owned();
-                                outcome.set(classify_input(&input));
-                            },
-                            i { class: "fa-solid fa-bolt" }
-                            span { "Classify" }
-                        }
                     }
                     textarea {
                         class: "smiles-box",
@@ -119,7 +109,11 @@ fn App() -> Element {
                         spellcheck: "false",
                         autocomplete: "off",
                         value: current_smiles,
-                        oninput: move |event| smiles_text.set(event.value()),
+                        oninput: move |event| {
+                            let value = event.value();
+                            outcome.set(classify_input(&value));
+                            smiles_text.set(value);
+                        },
                     }
                     p { class: "hint",
                         i { class: "fa-solid fa-circle-info" }
