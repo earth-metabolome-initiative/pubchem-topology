@@ -17,7 +17,7 @@
 mod infographic;
 
 use std::{
-    array,
+    array, env,
     fs::{self, File},
     io::{self, BufRead, BufReader, BufWriter, Read, Write},
     mem,
@@ -57,6 +57,7 @@ pub const DEFAULT_PARQUET_BATCH_ROWS: usize = 1_000_000;
 pub const DEFAULT_CREATOR_NAME: &str = "Luca Cappelletti";
 /// Default ORCID embedded in Zenodo metadata.
 pub const DEFAULT_CREATOR_ORCID: &str = "0000-0002-1269-2038";
+const ZENODO_TOKEN_ENV: &str = "ZENODO_TOKEN";
 
 const BYTES_PROGRESS_TEMPLATE: &str =
     "{msg:14} [{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta})";
@@ -92,7 +93,7 @@ pub enum Check {
 
 /// Total number of emitted topology checks.
 pub const CHECK_COUNT: usize = 10;
-const BOOL_COLUMN_COUNT: u64 = (CHECK_COUNT as u64) + 2;
+const BOOL_COLUMN_COUNT: u64 = CHECK_COUNT as u64;
 const COMPONENT_COLUMN_COUNT: u64 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -320,26 +321,27 @@ struct BatchStats {
 impl BatchStats {
     fn observe(&mut self, row: &RowClassification) {
         self.total_records += 1;
-        if !row.parse_ok {
-            self.parse_errors += 1;
-            return;
-        }
-
-        self.parsed_records += 1;
-        if !row.topology_ok {
-            self.topology_errors += 1;
-            return;
-        }
-
-        for (slot, value) in self.counts.iter_mut().zip(row.checks) {
-            *slot += u64::from(value);
-        }
-        increment_histogram(
-            &mut self.connected_components_histogram,
-            row.connected_components,
-        );
-        if row.connected_components == 1 {
-            increment_histogram(&mut self.diameter_histogram, row.diameter);
+        match row.state {
+            RowState::ParseError => {
+                self.parse_errors += 1;
+            }
+            RowState::TopologyError => {
+                self.parsed_records += 1;
+                self.topology_errors += 1;
+            }
+            RowState::Success => {
+                self.parsed_records += 1;
+                for (slot, value) in self.counts.iter_mut().zip(row.checks) {
+                    *slot += u64::from(value);
+                }
+                increment_histogram(
+                    &mut self.connected_components_histogram,
+                    row.connected_components,
+                );
+                if row.connected_components == 1 {
+                    increment_histogram(&mut self.diameter_histogram, row.diameter);
+                }
+            }
         }
     }
 
@@ -359,11 +361,17 @@ impl BatchStats {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RowState {
+    ParseError,
+    TopologyError,
+    Success,
+}
+
 #[derive(Debug, Clone)]
 struct RowClassification {
     cid: u32,
-    parse_ok: bool,
-    topology_ok: bool,
+    state: RowState,
     checks: [bool; CHECK_COUNT],
     connected_components: u16,
     diameter: u16,
@@ -373,8 +381,7 @@ impl Default for RowClassification {
     fn default() -> Self {
         Self {
             cid: 0,
-            parse_ok: false,
-            topology_ok: false,
+            state: RowState::ParseError,
             checks: [false; CHECK_COUNT],
             connected_components: 0,
             diameter: 0,
@@ -398,8 +405,6 @@ struct ClassificationMetrics {
 #[derive(Debug, Clone)]
 struct TopologyColumns {
     cids: Vec<u32>,
-    parse_ok: Vec<bool>,
-    topology_ok: Vec<bool>,
     connected_components: Vec<u16>,
     diameter: Vec<u16>,
     checks: [Vec<bool>; CHECK_COUNT],
@@ -409,8 +414,6 @@ impl TopologyColumns {
     fn with_capacity(capacity: usize) -> Self {
         Self {
             cids: Vec::with_capacity(capacity),
-            parse_ok: Vec::with_capacity(capacity),
-            topology_ok: Vec::with_capacity(capacity),
             connected_components: Vec::with_capacity(capacity),
             diameter: Vec::with_capacity(capacity),
             checks: array::from_fn(|_| Vec::with_capacity(capacity)),
@@ -424,8 +427,6 @@ impl TopologyColumns {
     fn extend(&mut self, rows: Vec<RowClassification>) {
         for row in rows {
             self.cids.push(row.cid);
-            self.parse_ok.push(row.parse_ok);
-            self.topology_ok.push(row.topology_ok);
             self.connected_components.push(row.connected_components);
             self.diameter.push(row.diameter);
             for (column, value) in self.checks.iter_mut().zip(row.checks) {
@@ -435,15 +436,9 @@ impl TopologyColumns {
     }
 
     fn record_batch(&self, schema: SchemaRef, start: usize, end: usize) -> Result<RecordBatch> {
-        let mut arrays: Vec<ArrayRef> = Vec::with_capacity(CHECK_COUNT + 5);
+        let mut arrays: Vec<ArrayRef> = Vec::with_capacity(CHECK_COUNT + 3);
         arrays.push(Arc::new(UInt32Array::from_iter_values(
             self.cids[start..end].iter().copied(),
-        )));
-        arrays.push(Arc::new(BooleanArray::from_iter(
-            self.parse_ok[start..end].iter().copied(),
-        )));
-        arrays.push(Arc::new(BooleanArray::from_iter(
-            self.topology_ok[start..end].iter().copied(),
         )));
         arrays.push(Arc::new(UInt16Array::from_iter_values(
             self.connected_components[start..end].iter().copied(),
@@ -453,9 +448,8 @@ impl TopologyColumns {
                 .iter()
                 .copied()
                 .zip(self.connected_components[start..end].iter().copied())
-                .zip(self.topology_ok[start..end].iter().copied())
-                .map(|((diameter, connected_components), topology_ok)| {
-                    (topology_ok && connected_components == 1).then_some(diameter)
+                .map(|(diameter, connected_components)| {
+                    (connected_components == 1).then_some(diameter)
                 }),
         )));
 
@@ -490,7 +484,14 @@ pub fn run_with_config(config: &PipelineConfig) -> Result<RunOutcome> {
     dotenv().ok();
     validate_config(config)?;
 
-    let zenodo_client = build_zenodo_client(config.publish_mode)?;
+    let production_token_present = env_var_is_configured(ZENODO_TOKEN_ENV);
+    if let Some(warning) =
+        missing_publication_warning(config.publish_mode, production_token_present)
+    {
+        eprintln!("{warning}");
+    }
+
+    let zenodo_client = build_zenodo_client(config.publish_mode, production_token_present)?;
 
     ensure_parent_dir(&config.compressed_path)?;
     ensure_parent_dir(&config.decompressed_path)?;
@@ -572,11 +573,31 @@ fn validate_config(config: &PipelineConfig) -> Result<()> {
     Ok(())
 }
 
-fn build_zenodo_client(mode: PublishMode) -> Result<Option<ZenodoClient>> {
+fn build_zenodo_client(
+    mode: PublishMode,
+    production_token_present: bool,
+) -> Result<Option<ZenodoClient>> {
     match mode {
+        PublishMode::Production if !production_token_present => Ok(None),
         PublishMode::Production => Ok(Some(ZenodoClient::from_env()?)),
         PublishMode::Sandbox => Ok(Some(ZenodoClient::from_sandbox_env()?)),
         PublishMode::Skip => Ok(None),
+    }
+}
+
+fn env_var_is_configured(name: &str) -> bool {
+    env::var_os(name).is_some_and(|value| !value.to_string_lossy().trim().is_empty())
+}
+
+fn missing_publication_warning(
+    mode: PublishMode,
+    production_token_present: bool,
+) -> Option<&'static str> {
+    match mode {
+        PublishMode::Production if !production_token_present => {
+            Some("warning: ZENODO_TOKEN is not set; continuing without Zenodo publication")
+        }
+        _ => None,
     }
 }
 
@@ -875,16 +896,14 @@ where
     match classify(&smiles) {
         Ok(metrics) => RowClassification {
             cid,
-            parse_ok: true,
-            topology_ok: true,
+            state: RowState::Success,
             checks: metrics.checks,
             connected_components: metrics.connected_components,
             diameter: metrics.diameter,
         },
         Err(_) => RowClassification {
             cid,
-            parse_ok: true,
-            topology_ok: false,
+            state: RowState::TopologyError,
             checks: [false; CHECK_COUNT],
             connected_components: 0,
             diameter: 0,
@@ -1025,8 +1044,6 @@ fn write_parquet(columns: &TopologyColumns, path: &Path, batch_rows: usize) -> R
 fn parquet_schema() -> SchemaRef {
     let mut fields = vec![
         Field::new("cid", DataType::UInt32, false),
-        Field::new("parse_ok", DataType::Boolean, false),
-        Field::new("topology_ok", DataType::Boolean, false),
         Field::new("connected_components", DataType::UInt16, false),
         Field::new("diameter", DataType::UInt16, true),
     ];
@@ -1179,8 +1196,8 @@ fn zenodo_description_html(report: &TopologyReport) -> String {
 
     format!(
         "<p>Topology annotations for the current PubChem CID-SMILES snapshot.</p>\
-         <p>The Parquet artifact stores one row per PubChem CID with boolean columns for parse and topology status, plus connected-component counts and exact diameters for connected molecules, and the following topology predicates computed with <code>smiles-parser</code> and <code>geometric-traits</code>: {checks}.</p>\
-         <p>The JSON sidecar stores aggregate counts and run metadata, and the SVG infographic provides an accessible visual summary of the run. Source snapshot URL: <code>{}</code>.</p>",
+         <p>The Parquet artifact stores one row per PubChem CID with connected-component counts, exact diameters for connected molecules, and the following topology predicates computed with <code>smiles-parser</code> and <code>geometric-traits</code>: {checks}.</p>\
+         <p>The JSON sidecar stores aggregate counts, parse and topology error totals, and run metadata, while the SVG infographic provides an accessible visual summary of the run. Source snapshot URL: <code>{}</code>.</p>",
         report.source_url,
     )
 }
@@ -1372,10 +1389,11 @@ mod tests {
     use super::{
         BatchStats, CHECK_COUNT, Check, ComponentHistogramBin, DEFAULT_BATCH_SIZE,
         DEFAULT_PARQUET_BATCH_ROWS, DEFAULT_PUBCHEM_SMILES_URL, InputMode, PipelineConfig,
-        PublishMode, RowClassification, ScalarHistogramBin, TopologyColumns, TopologyReport,
-        ZenodoState, build_zenodo_metadata, classify_pubchem_smiles, classify_record,
-        classify_record_with, classify_smiles, count_pubchem_records, ensure_parent_dir,
-        estimate_result_memory_bytes, format_gibibytes, load_zenodo_state, new_bytes_progress_bar,
+        PublishMode, RowClassification, RowState, ScalarHistogramBin, TopologyColumns,
+        TopologyReport, ZenodoState, build_zenodo_client, build_zenodo_metadata,
+        classify_pubchem_smiles, classify_record, classify_record_with, classify_smiles,
+        count_pubchem_records, ensure_parent_dir, estimate_result_memory_bytes, format_gibibytes,
+        load_zenodo_state, missing_publication_warning, new_bytes_progress_bar,
         new_items_progress_bar, new_spinner, parquet_schema, parse_pubchem_record, prepare_input,
         publish_artifacts, run_with_config, temporary_path, validate_config, write_parquet,
         write_summary, write_zenodo_state,
@@ -1526,6 +1544,30 @@ mod tests {
     }
 
     #[test]
+    fn missing_publication_warning_is_emitted_for_production_without_token() {
+        assert_eq!(
+            missing_publication_warning(PublishMode::Production, false),
+            Some("warning: ZENODO_TOKEN is not set; continuing without Zenodo publication")
+        );
+        assert_eq!(
+            missing_publication_warning(PublishMode::Production, true),
+            None
+        );
+        assert_eq!(
+            missing_publication_warning(PublishMode::Sandbox, false),
+            None
+        );
+        assert_eq!(missing_publication_warning(PublishMode::Skip, false), None);
+    }
+
+    #[test]
+    fn build_zenodo_client_skips_production_without_token() -> Result<()> {
+        let client = build_zenodo_client(PublishMode::Production, false)?;
+        assert!(client.is_none());
+        Ok(())
+    }
+
+    #[test]
     fn validate_config_rejects_zero_batch_size() {
         let config = PipelineConfig {
             batch_size: 0,
@@ -1584,8 +1626,7 @@ mod tests {
     fn classify_record_returns_default_for_unparseable_rows() {
         let row = classify_record("not a valid pubchem row");
         assert_eq!(row.cid, 0);
-        assert!(!row.parse_ok);
-        assert!(!row.topology_ok);
+        assert_eq!(row.state, RowState::ParseError);
         assert_eq!(row.checks, [false; CHECK_COUNT]);
     }
 
@@ -1593,16 +1634,14 @@ mod tests {
     fn classify_record_returns_default_for_non_numeric_cid() {
         let row = classify_record("bad\tCCO");
         assert_eq!(row.cid, 0);
-        assert!(!row.parse_ok);
-        assert!(!row.topology_ok);
+        assert_eq!(row.state, RowState::ParseError);
     }
 
     #[test]
     fn classify_record_marks_topology_failures_when_classifier_errors() {
         let row = classify_record_with("2244\tCCO", |_| Err(anyhow!("forced failure")));
         assert_eq!(row.cid, 2244);
-        assert!(row.parse_ok);
-        assert!(!row.topology_ok);
+        assert_eq!(row.state, RowState::TopologyError);
         assert_eq!(row.checks, [false; CHECK_COUNT]);
     }
 
@@ -1611,8 +1650,7 @@ mod tests {
         let mut stats = BatchStats::default();
         let row = RowClassification {
             cid: 1,
-            parse_ok: true,
-            topology_ok: false,
+            state: RowState::TopologyError,
             checks: [false; CHECK_COUNT],
             connected_components: 0,
             diameter: 0,
@@ -1629,7 +1667,7 @@ mod tests {
     fn estimate_result_memory_matches_columnar_layout() {
         let rows = 120_000_000_u64;
         let estimated = estimate_result_memory_bytes(rows);
-        assert_eq!(estimated, 1_140_000_000);
+        assert_eq!(estimated, 1_110_000_000);
     }
 
     #[test]
@@ -1860,10 +1898,10 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(field_names[0], "cid");
-        assert_eq!(field_names[1], "parse_ok");
-        assert_eq!(field_names[2], "topology_ok");
-        assert_eq!(field_names[3], "connected_components");
-        assert_eq!(field_names[4], "diameter");
+        assert_eq!(field_names[1], "connected_components");
+        assert_eq!(field_names[2], "diameter");
+        assert!(!field_names.contains(&"parse_ok"));
+        assert!(!field_names.contains(&"topology_ok"));
         assert!(field_names.contains(&"k4_homeomorph"));
     }
 
@@ -1875,8 +1913,7 @@ mod tests {
         columns.extend(vec![
             RowClassification {
                 cid: 1,
-                parse_ok: true,
-                topology_ok: true,
+                state: RowState::Success,
                 connected_components: 1,
                 diameter: 2,
                 checks: [
@@ -1885,8 +1922,7 @@ mod tests {
             },
             RowClassification {
                 cid: 2,
-                parse_ok: false,
-                topology_ok: false,
+                state: RowState::ParseError,
                 connected_components: 0,
                 diameter: 0,
                 checks: [false; CHECK_COUNT],

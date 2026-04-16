@@ -8,12 +8,31 @@
 
 Download the current PubChem [`CID-SMILES.gz`](https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Extras/) release, parse it with [`smiles-parser`](https://github.com/earth-metabolome-initiative/smiles-parser), classify molecular topology with [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits), write one row per CID to Parquet, write a JSON summary and SVG infographic, and publish the artifacts to Zenodo with `zenodo-rs`.
 
+Would you like to see more topological properties? Open an issue or submit a pull request!
+
 ![PubChem Molecular Topology infographic](infographic.png)
+
+The Parquet artifact stores one row per PubChem CID with this schema:
+`cid`, `connected_components`, `diameter`, `tree`, `forest`, `cactus`,
+`chordal`, `planar`, `outerplanar`, `k23_homeomorph`, `k33_homeomorph`,
+`k4_homeomorph`, `bipartite`.
+
+Example values sampled from the current production dataset:
+
+| cid | connected_components | diameter | tree | forest | cactus | chordal | planar | outerplanar | k23_homeomorph | k33_homeomorph | k4_homeomorph | bipartite |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | 6 | true | true | true | true | true | true | false | false | false | true |
+| 7 | 1 | 6 | false | false | false | false | true | true | false | false | false | false |
+| 92 | 1 | 12 | false | false | false | false | true | false | true | false | false | true |
+| 299 | 1 | 6 | false | false | false | false | true | false | true | false | true | false |
+
+Aggregate parse and topology failure totals are recorded in the JSON summary, not as per-row Parquet columns.
+`diameter` is populated for connected molecules; disconnected molecules are written as `null`.
 
 Reproduce the results with:
 
 ```bash
 cp env.example .env
-# set ZENODO_TOKEN in .env
+# optional: set ZENODO_TOKEN in .env to publish to Zenodo
 RUSTFLAGS="-C target-cpu=native" cargo run --release
 ```
