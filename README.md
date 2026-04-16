@@ -6,7 +6,7 @@
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-93450a?logo=rust)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-Download the current PubChem [`CID-SMILES.gz`](https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Extras/) release, parse it with [`smiles-parser`](https://github.com/earth-metabolome-initiative/smiles-parser), classify molecular topology with [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits), write one row per CID to Parquet, write a JSON summary and SVG infographic, and publish the artifacts to Zenodo with `zenodo-rs`.
+Download the current PubChem [`CID-SMILES.gz`](https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Extras/) release, parse it with [`smiles-parser`](https://github.com/earth-metabolome-initiative/smiles-parser), classify molecular topology with [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits), write one row per CID to Parquet, write a JSON summary and SVG infographic, and publish the artifacts to Zenodo with [`zenodo-rs`](https://github.com/LucaCappelletti94/zenodo-rs).
 
 Would you like to see more topological properties? Open an issue or submit a pull request!
 
