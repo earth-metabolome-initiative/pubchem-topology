@@ -5,6 +5,7 @@ use serde_json::{Map, Value, json};
 use topology_classifier::{Check, TopologyClassification, classify_smiles_text, graphlet_svg};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const FAVICON_SVG: Asset = asset!("/assets/favicon.svg");
 const DEFAULT_SMILES: &str = "CCO";
 const REPOSITORY_URL: &str = "https://github.com/earth-metabolome-initiative/pubchem-topology";
 const ZENODO_URL: &str = "https://doi.org/10.5281/zenodo.19599330";
@@ -72,6 +73,11 @@ fn App() -> Element {
 
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
+        document::Link {
+            rel: "icon",
+            href: FAVICON_SVG,
+            r#type: "image/svg+xml",
+        }
 
         main { class: "page-shell",
             section { class: "hero",
