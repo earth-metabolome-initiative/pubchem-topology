@@ -13,21 +13,22 @@ Would you like to see more topological properties? Open an issue or submit a pul
 ![PubChem Molecular Topology infographic](infographic.png)
 
 The Parquet artifact stores one row per PubChem CID with this schema:
-`cid`, [`connected_components`](https://en.wikipedia.org/wiki/Connected_component_%28graph_theory%29), [`diameter`](https://en.wikipedia.org/wiki/Diameter_%28graph_theory%29), [`tree`](https://en.wikipedia.org/wiki/Tree_%28graph_theory%29), [`forest`](https://en.wikipedia.org/wiki/Tree_%28graph_theory%29#Forest), [`cactus`](https://en.wikipedia.org/wiki/Cactus_graph),
+`cid`, [`connected_components`](https://en.wikipedia.org/wiki/Connected_component_%28graph_theory%29), [`diameter`](https://en.wikipedia.org/wiki/Diameter_%28graph_theory%29), `triangle_count`, `square_count`, [`clustering_coefficient`](https://en.wikipedia.org/wiki/Clustering_coefficient), `square_clustering_coefficient`, [`tree`](https://en.wikipedia.org/wiki/Tree_%28graph_theory%29), [`forest`](https://en.wikipedia.org/wiki/Tree_%28graph_theory%29#Forest), [`cactus`](https://en.wikipedia.org/wiki/Cactus_graph),
 [`chordal`](https://en.wikipedia.org/wiki/Chordal_graph), [`planar`](https://en.wikipedia.org/wiki/Planar_graph), [`outerplanar`](https://en.wikipedia.org/wiki/Outerplanar_graph), `k23_homeomorph` (contains a [homeomorph](https://en.wikipedia.org/wiki/Homeomorphism_%28graph_theory%29) of [`K2,3`](https://en.wikipedia.org/wiki/Complete_bipartite_graph)), `k33_homeomorph` (contains a [homeomorph](https://en.wikipedia.org/wiki/Homeomorphism_%28graph_theory%29) of [`K3,3`](https://en.wikipedia.org/wiki/Complete_bipartite_graph)),
 `k4_homeomorph` (contains a [homeomorph](https://en.wikipedia.org/wiki/Homeomorphism_%28graph_theory%29) of [`K4`](https://en.wikipedia.org/wiki/Complete_graph)), [`bipartite`](https://en.wikipedia.org/wiki/Bipartite_graph).
 
 Example values sampled from the current production dataset:
 
-| cid | connected_components | diameter | tree | forest | cactus | chordal | planar | outerplanar | k23_homeomorph | k33_homeomorph | k4_homeomorph | bipartite |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 6 | true | true | true | true | true | true | false | false | false | true |
-| 7 | 1 | 6 | false | false | false | false | true | true | false | false | false | false |
-| 92 | 1 | 12 | false | false | false | false | true | false | true | false | false | true |
-| 299 | 1 | 6 | false | false | false | false | true | false | true | false | true | false |
+| cid | connected_components | diameter | triangle_count | square_count | clustering_coefficient | square_clustering_coefficient | tree | forest | cactus | chordal | planar | outerplanar | k23_homeomorph | k33_homeomorph | k4_homeomorph | bipartite |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | 6 | 0 | 0 | 0.000000 | 0.000000 | true | true | true | true | true | true | false | false | false | true |
+| 92 | 1 | 12 | 0 | 0 | 0.000000 | 0.000000 | false | false | false | false | true | false | true | false | false | true |
+| 162 | 1 | 6 | 0 | 1 | 0.000000 | 0.034838 | false | false | false | false | true | true | false | false | false | false |
+| 467 | 1 | 29 | 1 | 0 | 0.017007 | 0.000000 | false | false | true | true | true | true | false | false | false | false |
 
 Aggregate parse and topology failure totals are recorded in the JSON summary, not as per-row Parquet columns.
 `diameter` is populated for connected molecules; disconnected molecules are written as `null`.
+Future work could clarify whether these graph topologies and motif-level metrics, including square clustering, triangle counts, and related descriptors, correlate with chemically interesting properties.
 
 Reproduce the batch results with:
 

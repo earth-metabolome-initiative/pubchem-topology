@@ -10,11 +10,12 @@ use time::OffsetDateTime;
 use topology_classifier::graphlet_svg;
 
 use crate::{
-    CHECK_COUNT, Check, ComponentHistogramBin, ScalarHistogramBin, TopologyReport, temporary_path,
+    CHECK_COUNT, Check, CoefficientHistogramBin, ComponentHistogramBin, ScalarHistogramBin,
+    TopologyReport, temporary_path,
 };
 
 const CANVAS_WIDTH: usize = 1_600;
-const CANVAS_HEIGHT: usize = 2_694;
+const CANVAS_HEIGHT: usize = 3_042;
 const PAGE_MARGIN: usize = 64;
 const CONTENT_WIDTH: usize = CANVAS_WIDTH - PAGE_MARGIN * 2;
 const SUMMARY_Y: usize = 250;
@@ -26,17 +27,18 @@ const CARD_WIDTH: usize = 720;
 const CARD_HEIGHT: usize = 272;
 const CARD_GAP_X: usize = 32;
 const CARD_GAP_Y: usize = 28;
-const COMPONENT_SECTION_Y: usize = 472;
-const COMPONENT_PANEL_HEIGHT: usize = 146;
-const COMPONENT_PANEL_WIDTH: usize = CARD_WIDTH;
-const COMPONENT_PANEL_GAP: usize = CARD_GAP_X;
-const DAG_SECTION_Y: usize = 650;
+const HISTOGRAM_SECTION_Y: usize = 472;
+const HISTOGRAM_PANEL_HEIGHT: usize = 146;
+const HISTOGRAM_PANEL_WIDTH: usize = CARD_WIDTH;
+const HISTOGRAM_PANEL_GAP: usize = CARD_GAP_X;
+const HISTOGRAM_ROW_GAP: usize = CARD_GAP_Y;
+const DAG_SECTION_Y: usize = 998;
 const DAG_PANEL_HEIGHT: usize = 390;
 const DAG_GRAPH_OFFSET_X: usize = 17;
 const DAG_GRAPH_OFFSET_Y: usize = 12;
 const DAG_LEGEND_X: usize = 1_148;
 const DAG_LEGEND_Y: usize = 44;
-const CARD_START_Y: usize = 1_068;
+const CARD_START_Y: usize = 1_416;
 const GRAPHLET_FRAME_X: usize = 22;
 const GRAPHLET_FRAME_Y: usize = 42;
 const GRAPHLET_FRAME_SIZE: usize = 160;
@@ -45,7 +47,7 @@ const GRAPHLET_SCALE_FACTOR: f32 = 0.86;
 const CARD_TEXT_X: usize = 196;
 const CARD_BAR_WIDTH: f64 = 470.0;
 const CARD_DESCRIPTION_WIDTH: f32 = 474.0;
-const FOOTER_Y: usize = 2_586;
+const FOOTER_Y: usize = 2_934;
 const REPOSITORY_URL: &str = env!("CARGO_PKG_REPOSITORY");
 
 struct CardSpec {
@@ -396,7 +398,7 @@ fn infographic_svg(report: &TopologyReport) -> Result<String> {
         ABSTRACT_WIDTH,
         &abstract_lines,
     ));
-    svg.push_str(&render_component_histograms(report));
+    svg.push_str(&render_metric_histograms(report));
     svg.push_str(&render_implication_dag());
 
     for (index, spec) in CARD_SPECS.iter().enumerate() {
@@ -483,18 +485,27 @@ fn render_card(
     )
 }
 
-fn render_component_histograms(report: &TopologyReport) -> String {
+fn render_metric_histograms(report: &TopologyReport) -> String {
     let connected_components_bins =
         component_display_bins(&report.connected_components_histogram, 8);
     let diameter_bins = scalar_display_bins(&report.diameter_histogram, 8);
+    let triangle_bins = scalar_display_bins(&report.triangle_count_histogram, 8);
+    let square_bins = scalar_display_bins(&report.square_count_histogram, 8);
+    let clustering_bins = coefficient_display_bins(&report.clustering_coefficient_histogram, 2);
+    let square_clustering_bins =
+        coefficient_display_bins(&report.square_clustering_coefficient_histogram, 2);
 
     format!(
-        r##"<g transform="translate({PAGE_MARGIN} {COMPONENT_SECTION_Y})">
-  {left_panel}
-  {right_panel}
+        r##"<g transform="translate({PAGE_MARGIN} {HISTOGRAM_SECTION_Y})">
+  {row_1_left}
+  {row_1_right}
+  {row_2_left}
+  {row_2_right}
+  {row_3_left}
+  {row_3_right}
 </g>
 "##,
-        left_panel = render_histogram_panel(
+        row_1_left = render_histogram_panel(
             0,
             0,
             "Connected components",
@@ -502,13 +513,45 @@ fn render_component_histograms(report: &TopologyReport) -> String {
             "#1B7288",
             "Regenerate the dataset to populate this histogram.",
         ),
-        right_panel = render_histogram_panel(
-            COMPONENT_PANEL_WIDTH + COMPONENT_PANEL_GAP,
+        row_1_right = render_histogram_panel(
+            HISTOGRAM_PANEL_WIDTH + HISTOGRAM_PANEL_GAP,
             0,
             "Diameter",
             &diameter_bins,
             "#A5503A",
             "Defined for connected molecules only.",
+        ),
+        row_2_left = render_histogram_panel(
+            0,
+            HISTOGRAM_PANEL_HEIGHT + HISTOGRAM_ROW_GAP,
+            "Triangle count",
+            &triangle_bins,
+            "#C46A2D",
+            "Distinct 3-cycles per molecular graph.",
+        ),
+        row_2_right = render_histogram_panel(
+            HISTOGRAM_PANEL_WIDTH + HISTOGRAM_PANEL_GAP,
+            HISTOGRAM_PANEL_HEIGHT + HISTOGRAM_ROW_GAP,
+            "Square count",
+            &square_bins,
+            "#7D3A1B",
+            "Distinct 4-cycles per molecular graph.",
+        ),
+        row_3_left = render_histogram_panel(
+            0,
+            (HISTOGRAM_PANEL_HEIGHT + HISTOGRAM_ROW_GAP) * 2,
+            "Clustering coefficient",
+            &clustering_bins,
+            "#2F6F65",
+            "Mean local clustering over all graph nodes.",
+        ),
+        row_3_right = render_histogram_panel(
+            HISTOGRAM_PANEL_WIDTH + HISTOGRAM_PANEL_GAP,
+            (HISTOGRAM_PANEL_HEIGHT + HISTOGRAM_ROW_GAP) * 2,
+            "Square clustering",
+            &square_clustering_bins,
+            "#3856A6",
+            "Mean square clustering over all graph nodes.",
         ),
     )
 }
@@ -775,8 +818,8 @@ fn render_histogram_panel(
 
     format!(
         r##"<g transform="translate({x} {y})">
-  <rect width="{COMPONENT_PANEL_WIDTH}" height="{COMPONENT_PANEL_HEIGHT}" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
-  <rect width="{COMPONENT_PANEL_WIDTH}" height="10" rx="28" fill="{accent}" fill-opacity="0.92"/>
+  <rect width="{HISTOGRAM_PANEL_WIDTH}" height="{HISTOGRAM_PANEL_HEIGHT}" rx="28" fill="#FFFDF8" stroke="#E3D7C7" filter="url(#card-shadow)"/>
+  <rect width="{HISTOGRAM_PANEL_WIDTH}" height="10" rx="28" fill="{accent}" fill-opacity="0.92"/>
   <text x="32" y="34" class="panel-title">{title}</text>
   <line x1="{chart_x}" y1="{baseline_y}" x2="{chart_x_end}" y2="{baseline_y}" stroke="#D9E2EC" stroke-width="2"/>
   {bars}
@@ -785,6 +828,21 @@ fn render_histogram_panel(
         title = escape_xml(title),
         bars = bars,
     )
+}
+
+fn coefficient_display_bins(
+    histogram: &[CoefficientHistogramBin],
+    bins_per_display_bucket: usize,
+) -> Vec<(String, u64)> {
+    histogram
+        .chunks(bins_per_display_bucket.max(1))
+        .map(|chunk| {
+            let lower_bound = chunk.first().map_or(0.0, |bin| bin.lower_bound);
+            let upper_bound = chunk.last().map_or(1.0, |bin| bin.upper_bound);
+            let molecules = chunk.iter().map(|bin| bin.molecules).sum();
+            (format!("{lower_bound:.1}-{upper_bound:.1}"), molecules)
+        })
+        .collect()
 }
 
 fn render_footer() -> String {
@@ -1098,7 +1156,7 @@ fn build_abstract_text(report: &TopologyReport, evaluated_records: u64) -> Strin
 
     if report.parse_errors == 0 && report.topology_errors == 0 {
         return format!(
-            "PubChem Molecular Topology provides a reproducible workflow for graph-theoretic annotation of molecular structures in PubChem. In the current CID-SMILES release, {} compounds were downloaded, decompressed, parsed, and evaluated in {} with no parsing or topology failures. The release contained {} planar graphs, {} outerplanar graphs, {} cactus graphs, {} bipartite graphs, {} K2,3 homeomorphs, {} K4 homeomorphs, and {} K3,3 homeomorphs. Per-CID boolean annotations were written to Parquet, and connected-component counts plus exact diameters for connected molecules were stored alongside them, where the diameter is the longest of the shortest paths, while aggregate summaries were accumulated in the same pass. The source code is available on GitHub, and released result sets are deposited in Zenodo.",
+            "PubChem Molecular Topology provides a reproducible workflow for graph-theoretic annotation of molecular structures in PubChem. In the current CID-SMILES release, {} compounds were downloaded, decompressed, parsed, and evaluated in {} with no parsing or topology failures. The release contained {} planar graphs, {} outerplanar graphs, {} cactus graphs, {} bipartite graphs, {} K2,3 homeomorphs, {} K4 homeomorphs, and {} K3,3 homeomorphs. Per-CID boolean annotations were written to Parquet, and connected-component counts plus exact diameters for connected molecules were stored alongside them, where the diameter is the longest of the shortest paths, while aggregate summaries were accumulated in the same pass. Future work can test whether these topologies and motif-level metrics, including triangle counts and square clustering, correlate with interesting chemical properties. The source code is available on GitHub, and released result sets are deposited in Zenodo.",
             format_count(report.total_records),
             runtime_seconds,
             planar_count,
@@ -1112,7 +1170,7 @@ fn build_abstract_text(report: &TopologyReport, evaluated_records: u64) -> Strin
     }
 
     format!(
-        "PubChem Molecular Topology provides a reproducible workflow for graph-theoretic annotation of molecular structures in PubChem. In the current CID-SMILES release, {} records were downloaded and decompressed; {} were parsed into molecular graphs, {} failed parsing, and {} completed topology evaluation after {} topology failures in {}. Among the evaluated graphs, {} were planar, {} were outerplanar, {} were cactus graphs, {} were bipartite, {} contained K2,3 homeomorphs, {} contained K4 homeomorphs, and {} contained K3,3 homeomorphs. Per-CID boolean annotations were written to Parquet, and connected-component counts plus exact diameters for connected molecules were stored alongside them, where the diameter is the longest of the shortest paths, while aggregate summaries were accumulated in the same pass. The source code is available on GitHub, and released result sets are deposited in Zenodo.",
+        "PubChem Molecular Topology provides a reproducible workflow for graph-theoretic annotation of molecular structures in PubChem. In the current CID-SMILES release, {} records were downloaded and decompressed; {} were parsed into molecular graphs, {} failed parsing, and {} completed topology evaluation after {} topology failures in {}. Among the evaluated graphs, {} were planar, {} were outerplanar, {} were cactus graphs, {} were bipartite, {} contained K2,3 homeomorphs, {} contained K4 homeomorphs, and {} contained K3,3 homeomorphs. Per-CID boolean annotations were written to Parquet, and connected-component counts plus exact diameters for connected molecules were stored alongside them, where the diameter is the longest of the shortest paths, while aggregate summaries were accumulated in the same pass. Future work can test whether these topologies and motif-level metrics, including triangle counts and square clustering, correlate with interesting chemical properties. The source code is available on GitHub, and released result sets are deposited in Zenodo.",
         format_count(report.total_records),
         format_count(report.parsed_records),
         format_count(report.parse_errors),
@@ -1192,7 +1250,9 @@ mod tests {
         CARD_DESCRIPTION_WIDTH, CARD_SPECS, format_count, infographic_svg, strip_root_svg,
         wrap_text, write_infographic,
     };
-    use crate::{Check, ComponentHistogramBin, ScalarHistogramBin, TopologyReport};
+    use crate::{
+        Check, CoefficientHistogramBin, ComponentHistogramBin, ScalarHistogramBin, TopologyReport,
+    };
     use anyhow::Result;
     use std::{fs, path::PathBuf};
     use tempfile::tempdir;
@@ -1234,6 +1294,37 @@ mod tests {
                     molecules: 2,
                 },
             ],
+            triangle_count_histogram: vec![
+                ScalarHistogramBin {
+                    value: 0,
+                    molecules: 2,
+                },
+                ScalarHistogramBin {
+                    value: 1,
+                    molecules: 1,
+                },
+            ],
+            square_count_histogram: vec![ScalarHistogramBin {
+                value: 0,
+                molecules: 3,
+            }],
+            clustering_coefficient_histogram: vec![
+                CoefficientHistogramBin {
+                    lower_bound: 0.0,
+                    upper_bound: 0.1,
+                    molecules: 2,
+                },
+                CoefficientHistogramBin {
+                    lower_bound: 0.9,
+                    upper_bound: 1.0,
+                    molecules: 1,
+                },
+            ],
+            square_clustering_coefficient_histogram: vec![CoefficientHistogramBin {
+                lower_bound: 0.0,
+                upper_bound: 0.1,
+                molecules: 3,
+            }],
         }
     }
 
@@ -1261,6 +1352,55 @@ mod tests {
                 ScalarHistogramBin {
                     value: 3,
                     molecules: 2,
+                },
+            ],
+            triangle_count_histogram: vec![
+                ScalarHistogramBin {
+                    value: 0,
+                    molecules: 2,
+                },
+                ScalarHistogramBin {
+                    value: 1,
+                    molecules: 2,
+                },
+            ],
+            square_count_histogram: vec![
+                ScalarHistogramBin {
+                    value: 0,
+                    molecules: 3,
+                },
+                ScalarHistogramBin {
+                    value: 1,
+                    molecules: 1,
+                },
+            ],
+            clustering_coefficient_histogram: vec![
+                CoefficientHistogramBin {
+                    lower_bound: 0.0,
+                    upper_bound: 0.1,
+                    molecules: 2,
+                },
+                CoefficientHistogramBin {
+                    lower_bound: 0.4,
+                    upper_bound: 0.5,
+                    molecules: 1,
+                },
+                CoefficientHistogramBin {
+                    lower_bound: 0.9,
+                    upper_bound: 1.0,
+                    molecules: 1,
+                },
+            ],
+            square_clustering_coefficient_histogram: vec![
+                CoefficientHistogramBin {
+                    lower_bound: 0.0,
+                    upper_bound: 0.1,
+                    molecules: 3,
+                },
+                CoefficientHistogramBin {
+                    lower_bound: 0.9,
+                    upper_bound: 1.0,
+                    molecules: 1,
                 },
             ],
             ..sample_report()
