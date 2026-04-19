@@ -169,6 +169,13 @@ code {
   font-size: clamp(2.8rem, 6vw, 4.8rem);
 }
 
+.hero-subtitle {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 .lede {
   max-width: 54rem;
   margin: 18px 0 0;

@@ -15,6 +15,9 @@ use web_sys::{ErrorEvent, MessageEvent, Worker, WorkerOptions, WorkerType};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const FAVICON_SVG: Asset = asset!("/assets/favicon.svg");
+const CANONICAL_URL: &str = "https://topology.earthmetabolome.org/";
+const META_DESCRIPTION: &str =
+    "Classify molecular graph topology from SMILES in the browser.";
 const DEFAULT_SMILES: &str = "CCO";
 const CLASSIFIER_WORKER_SCRIPT: &str = "/generated/classifier-worker.js";
 const REPOSITORY_URL: &str = "https://github.com/earth-metabolome-initiative/pubchem-topology";
@@ -298,16 +301,29 @@ fn App() -> Element {
 
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
+        document::Meta {
+            name: "description",
+            content: META_DESCRIPTION,
+        }
+        document::Meta {
+            name: "robots",
+            content: "index,follow",
+        }
         document::Link {
             rel: "icon",
             href: FAVICON_SVG,
             r#type: "image/svg+xml",
+        }
+        document::Link {
+            rel: "canonical",
+            href: CANONICAL_URL,
         }
 
         main { class: "page-shell",
             section { class: "hero",
                 p { class: "eyebrow", "Earth Metabolome Initiative" }
                 h1 { "Molecular topology" }
+                p { class: "hero-subtitle", "Classify graph structure from SMILES." }
             }
 
             section { class: "workspace",
