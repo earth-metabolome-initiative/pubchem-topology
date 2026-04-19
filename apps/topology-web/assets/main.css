@@ -520,7 +520,7 @@ code {
 }
 
 .metric-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .metric-card,
@@ -626,6 +626,12 @@ code {
 @media (max-width: 980px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

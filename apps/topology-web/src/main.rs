@@ -276,8 +276,16 @@ fn classification_json(
         "smiles": smiles_text.trim(),
         "connected_components": classification.connected_components,
         "diameter": classification.diameter,
+        "triangle_count": classification.triangle_count,
+        "square_count": classification.square_count,
+        "clustering_coefficient": classification.clustering_coefficient,
+        "square_clustering_coefficient": classification.square_clustering_coefficient,
         "checks": checks,
     }))
+}
+
+fn format_coefficient(value: f64) -> String {
+    format!("{value:.3}")
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -306,6 +314,8 @@ fn ResultPanel(smiles_text: String, classification: TopologyClassification) -> E
         .diameter
         .map(|value| value.to_string())
         .unwrap_or_else(|| "disconnected".to_owned());
+    let clustering = format_coefficient(classification.clustering_coefficient);
+    let square_clustering = format_coefficient(classification.square_clustering_coefficient);
 
     rsx! {
         div { class: "result-stack",
@@ -360,6 +370,34 @@ fn ResultPanel(smiles_text: String, classification: TopologyClassification) -> E
                     value: diameter,
                     detail: "Only defined for connected graphs in this utility.",
                     icon: "fa-solid fa-ruler-horizontal",
+                    tone: "tone-bipartite",
+                }
+                MetricCard {
+                    label: "Triangle count",
+                    value: classification.triangle_count.to_string(),
+                    detail: "Distinct 3-cycles in the molecular graph.",
+                    icon: "fa-solid fa-draw-polygon",
+                    tone: "tone-cactus",
+                }
+                MetricCard {
+                    label: "Square count",
+                    value: classification.square_count.to_string(),
+                    detail: "Distinct 4-cycles in the molecular graph.",
+                    icon: "fa-solid fa-square",
+                    tone: "tone-k4",
+                }
+                MetricCard {
+                    label: "Clustering coefficient",
+                    value: clustering,
+                    detail: "Mean local clustering across all graph nodes.",
+                    icon: "fa-solid fa-share-nodes",
+                    tone: "tone-tree",
+                }
+                MetricCard {
+                    label: "Square clustering",
+                    value: square_clustering,
+                    detail: "Mean square clustering across all graph nodes.",
+                    icon: "fa-solid fa-border-all",
                     tone: "tone-bipartite",
                 }
             }
