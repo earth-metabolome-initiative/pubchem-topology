@@ -116,9 +116,9 @@ impl Check {
             Self::Chordal => "Every cycle of length at least four has a chord.",
             Self::Planar => "Embeddable in the plane without crossings.",
             Self::Outerplanar => "Planar with all vertices on the outer face.",
-            Self::K23Homeomorph => "Contains a subdivision of K2,3.",
-            Self::K33Homeomorph => "Contains a subdivision of K3,3.",
-            Self::K4Homeomorph => "Contains a subdivision of K4.",
+            Self::K23Homeomorph => "Two branch vertices each linked to three others.",
+            Self::K33Homeomorph => "Three branch vertices per side, with links between sides.",
+            Self::K4Homeomorph => "Four branch vertices all linked to one another.",
             Self::Bipartite => "Contains no odd cycle.",
         }
     }
@@ -155,6 +155,93 @@ impl TopologyClassification {
     /// Returns the boolean value of a specific topology predicate.
     pub const fn check(&self, check: Check) -> bool {
         self.checks[check as usize]
+    }
+}
+
+/// One non-empty SMILES line submitted for batch classification.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BatchInputLine {
+    /// Original 1-based line number in the submitted batch.
+    pub line_number: usize,
+    /// Trimmed SMILES string to classify.
+    pub smiles: String,
+}
+
+/// One classified SMILES batch entry.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BatchEntry {
+    /// Original 1-based line number in the submitted batch.
+    pub line_number: usize,
+    /// Trimmed SMILES string that was classified.
+    pub smiles: String,
+    /// Either the topology classification or the parsing/classification error.
+    pub result: Result<TopologyClassification, String>,
+}
+
+/// Command sent from the UI thread to the topology worker.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WorkerBatchRequest {
+    /// Starts classifying a fresh SMILES batch.
+    Classify {
+        /// Monotonic request token used to ignore stale responses.
+        token: u64,
+        /// Non-empty SMILES lines to classify.
+        lines: Vec<BatchInputLine>,
+    },
+    /// Stops any in-flight batch as soon as the worker yields.
+    Cancel {
+        /// Replacement token that invalidates the previous request.
+        token: u64,
+    },
+}
+
+impl WorkerBatchRequest {
+    /// Returns the monotonic token carried by the request.
+    pub const fn token(&self) -> u64 {
+        match self {
+            Self::Classify { token, .. } | Self::Cancel { token } => *token,
+        }
+    }
+}
+
+/// Response sent from the topology worker back to the UI thread.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WorkerBatchResponse {
+    /// Partial progress update for the current batch.
+    Progress {
+        /// Request token being reported.
+        token: u64,
+        /// Number of completed lines so far.
+        completed: usize,
+        /// Total lines in the batch.
+        total: usize,
+    },
+    /// Final classified batch.
+    Complete {
+        /// Request token being reported.
+        token: u64,
+        /// Fully classified batch entries.
+        entries: Vec<BatchEntry>,
+    },
+    /// Fatal worker-side failure.
+    Fatal {
+        /// Request token being reported.
+        token: u64,
+        /// Human-readable failure message.
+        message: String,
+    },
+}
+
+impl WorkerBatchResponse {
+    /// Returns the request token carried by the response.
+    pub const fn token(&self) -> u64 {
+        match self {
+            Self::Progress { token, .. }
+            | Self::Complete { token, .. }
+            | Self::Fatal { token, .. } => *token,
+        }
     }
 }
 
@@ -208,6 +295,20 @@ pub fn classify_smiles_text(
     let smiles = Smiles::from_str(smiles_text)
         .map_err(|error| ClassificationError::Parse(error.to_string()))?;
     classify_smiles(&smiles)
+}
+
+/// Classifies one already-trimmed SMILES batch line.
+pub fn classify_batch_line(line: BatchInputLine) -> BatchEntry {
+    let BatchInputLine {
+        line_number,
+        smiles,
+    } = line;
+
+    BatchEntry {
+        line_number,
+        result: classify_smiles_text(&smiles).map_err(|error| error.to_string()),
+        smiles,
+    }
 }
 
 /// Classifies an already parsed molecular graph.

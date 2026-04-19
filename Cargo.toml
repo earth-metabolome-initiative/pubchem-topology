@@ -8,7 +8,7 @@ description = "Download PubChem SMILES, classify topology predicates, store Parq
 repository = "https://github.com/earth-metabolome-initiative/pubchem-topology"
 
 [workspace]
-members = ["apps/topology-web", "crates/topology-classifier"]
+members = ["apps/topology-web", "apps/topology-worker", "crates/topology-classifier"]
 default-members = [".", "crates/topology-classifier"]
 resolver = "2"
 

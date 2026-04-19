@@ -15,7 +15,7 @@ style = ["https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.
 
 [web.watcher]
 reload_html = true
-watch_path = ["src", "assets", "../../crates/topology-classifier/src"]
+watch_path = ["src", "assets", "../topology-worker/Cargo.toml", "../topology-worker/src", "../../crates/topology-classifier/src"]
 
 [web.wasm_opt]
 level = "z"

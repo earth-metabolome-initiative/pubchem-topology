@@ -1,16 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PubChem Molecular Topology favicon">
-  <defs>
-    <linearGradient id="topology-stripe" x1="8" y1="0" x2="56" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2f6f65"/>
-      <stop offset="0.18" stop-color="#5a8f42"/>
-      <stop offset="0.36" stop-color="#c46a2d"/>
-      <stop offset="0.54" stop-color="#a5503a"/>
-      <stop offset="0.72" stop-color="#1b7288"/>
-      <stop offset="1" stop-color="#3856a6"/>
-    </linearGradient>
-  </defs>
   <rect x="4" y="4" width="56" height="56" rx="16" fill="#fffdf8" stroke="#e4d7c8" stroke-width="2"/>
-  <rect x="8" y="8" width="48" height="6" rx="3" fill="url(#topology-stripe)"/>
   <g fill="none" stroke="#1b7288" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
     <path d="M32 18L47 32L32 46L17 32Z"/>
     <path d="M17 32H47" opacity="0.92"/>

@@ -30,4 +30,5 @@ results/review/*
 *.tmp
 .playwright-mcp
 apps/topology-web/.dioxus/
+apps/topology-web/public/generated/
 .tmp_wasm_probe/
