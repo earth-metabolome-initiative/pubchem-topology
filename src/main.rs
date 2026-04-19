@@ -100,7 +100,8 @@ mod tests {
 
     use super::{RunOutcome, outcome_lines};
     use pubchem_topology::{
-        ComponentHistogramBin, ScalarHistogramBin, TopologyReport, ZenodoPublicationSummary,
+        CoefficientHistogramBin, ComponentHistogramBin, ScalarHistogramBin, TopologyReport,
+        ZenodoPublicationSummary,
     };
 
     fn sample_report() -> TopologyReport {
@@ -146,6 +147,37 @@ mod tests {
                     molecules: 2,
                 },
             ],
+            triangle_count_histogram: vec![
+                ScalarHistogramBin {
+                    value: 0,
+                    molecules: 2,
+                },
+                ScalarHistogramBin {
+                    value: 1,
+                    molecules: 1,
+                },
+            ],
+            square_count_histogram: vec![ScalarHistogramBin {
+                value: 0,
+                molecules: 3,
+            }],
+            clustering_coefficient_histogram: vec![
+                CoefficientHistogramBin {
+                    lower_bound: 0.0,
+                    upper_bound: 0.1,
+                    molecules: 2,
+                },
+                CoefficientHistogramBin {
+                    lower_bound: 0.9,
+                    upper_bound: 1.0,
+                    molecules: 1,
+                },
+            ],
+            square_clustering_coefficient_histogram: vec![CoefficientHistogramBin {
+                lower_bound: 0.0,
+                upper_bound: 0.1,
+                molecules: 3,
+            }],
         }
     }
 

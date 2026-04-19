@@ -27,7 +27,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt16Array, UInt32Array};
+use arrow_array::{ArrayRef, BooleanArray, Float64Array, RecordBatch, UInt16Array, UInt32Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use dotenvy::dotenv;
 use flate2::read::MultiGzDecoder;
@@ -64,7 +64,10 @@ const ITEMS_PROGRESS_TEMPLATE: &str =
 const SPINNER_PROGRESS_TEMPLATE: &str = "{msg:14} [{elapsed_precise}] {spinner}";
 
 const BOOL_COLUMN_COUNT: u64 = CHECK_COUNT as u64;
-const COMPONENT_COLUMN_COUNT: u64 = 2;
+const U16_COLUMN_COUNT: u64 = 2;
+const U32_COLUMN_COUNT: u64 = 2;
+const F64_COLUMN_COUNT: u64 = 2;
+const COEFFICIENT_HISTOGRAM_BUCKETS: usize = 10;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// One histogram bin for a component-count distribution.
@@ -79,8 +82,19 @@ pub struct ComponentHistogramBin {
 /// One histogram bin for a scalar graph metric distribution.
 pub struct ScalarHistogramBin {
     /// Observed scalar value.
-    pub value: u16,
+    pub value: u32,
     /// Number of molecules with exactly this value.
+    pub molecules: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// One histogram bin for a coefficient aggregated into a fixed numeric interval.
+pub struct CoefficientHistogramBin {
+    /// Inclusive lower bound of the coefficient bucket.
+    pub lower_bound: f64,
+    /// Inclusive upper bound of the coefficient bucket.
+    pub upper_bound: f64,
+    /// Number of molecules whose coefficient falls in this interval.
     pub molecules: u64,
 }
 
@@ -198,6 +212,14 @@ pub struct TopologyReport {
     pub connected_components_histogram: Vec<ComponentHistogramBin>,
     /// Histogram of exact undirected diameters for successfully evaluated connected molecules.
     pub diameter_histogram: Vec<ScalarHistogramBin>,
+    /// Histogram of exact triangle counts for successfully evaluated molecules.
+    pub triangle_count_histogram: Vec<ScalarHistogramBin>,
+    /// Histogram of exact square counts for successfully evaluated molecules.
+    pub square_count_histogram: Vec<ScalarHistogramBin>,
+    /// Histogram of mean local clustering coefficients using fixed-width buckets.
+    pub clustering_coefficient_histogram: Vec<CoefficientHistogramBin>,
+    /// Histogram of mean square clustering coefficients using fixed-width buckets.
+    pub square_clustering_coefficient_histogram: Vec<CoefficientHistogramBin>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -254,6 +276,10 @@ struct BatchStats {
     counts: [u64; CHECK_COUNT],
     connected_components_histogram: Vec<u64>,
     diameter_histogram: Vec<u64>,
+    triangle_count_histogram: Vec<u64>,
+    square_count_histogram: Vec<u64>,
+    clustering_coefficient_histogram: Vec<u64>,
+    square_clustering_coefficient_histogram: Vec<u64>,
 }
 
 impl BatchStats {
@@ -272,13 +298,26 @@ impl BatchStats {
                 for (slot, value) in self.counts.iter_mut().zip(row.checks) {
                     *slot += u64::from(value);
                 }
-                increment_histogram(
+                increment_component_histogram(
                     &mut self.connected_components_histogram,
                     row.connected_components,
                 );
                 if row.connected_components == 1 {
-                    increment_histogram(&mut self.diameter_histogram, row.diameter);
+                    increment_scalar_histogram(
+                        &mut self.diameter_histogram,
+                        u32::from(row.diameter),
+                    );
                 }
+                increment_scalar_histogram(&mut self.triangle_count_histogram, row.triangle_count);
+                increment_scalar_histogram(&mut self.square_count_histogram, row.square_count);
+                increment_coefficient_histogram(
+                    &mut self.clustering_coefficient_histogram,
+                    row.clustering_coefficient,
+                );
+                increment_coefficient_histogram(
+                    &mut self.square_clustering_coefficient_histogram,
+                    row.square_clustering_coefficient,
+                );
             }
         }
     }
@@ -296,6 +335,22 @@ impl BatchStats {
             other.connected_components_histogram,
         );
         merge_histogram(&mut self.diameter_histogram, other.diameter_histogram);
+        merge_histogram(
+            &mut self.triangle_count_histogram,
+            other.triangle_count_histogram,
+        );
+        merge_histogram(
+            &mut self.square_count_histogram,
+            other.square_count_histogram,
+        );
+        merge_histogram(
+            &mut self.clustering_coefficient_histogram,
+            other.clustering_coefficient_histogram,
+        );
+        merge_histogram(
+            &mut self.square_clustering_coefficient_histogram,
+            other.square_clustering_coefficient_histogram,
+        );
     }
 }
 
@@ -313,6 +368,10 @@ struct RowClassification {
     checks: [bool; CHECK_COUNT],
     connected_components: u16,
     diameter: u16,
+    triangle_count: u32,
+    square_count: u32,
+    clustering_coefficient: f64,
+    square_clustering_coefficient: f64,
 }
 
 impl Default for RowClassification {
@@ -323,6 +382,10 @@ impl Default for RowClassification {
             checks: [false; CHECK_COUNT],
             connected_components: 0,
             diameter: 0,
+            triangle_count: 0,
+            square_count: 0,
+            clustering_coefficient: 0.0,
+            square_clustering_coefficient: 0.0,
         }
     }
 }
@@ -338,6 +401,10 @@ struct TopologyColumns {
     cids: Vec<u32>,
     connected_components: Vec<u16>,
     diameter: Vec<u16>,
+    triangle_count: Vec<u32>,
+    square_count: Vec<u32>,
+    clustering_coefficient: Vec<f64>,
+    square_clustering_coefficient: Vec<f64>,
     checks: [Vec<bool>; CHECK_COUNT],
 }
 
@@ -347,6 +414,10 @@ impl TopologyColumns {
             cids: Vec::with_capacity(capacity),
             connected_components: Vec::with_capacity(capacity),
             diameter: Vec::with_capacity(capacity),
+            triangle_count: Vec::with_capacity(capacity),
+            square_count: Vec::with_capacity(capacity),
+            clustering_coefficient: Vec::with_capacity(capacity),
+            square_clustering_coefficient: Vec::with_capacity(capacity),
             checks: array::from_fn(|_| Vec::with_capacity(capacity)),
         }
     }
@@ -360,6 +431,11 @@ impl TopologyColumns {
             self.cids.push(row.cid);
             self.connected_components.push(row.connected_components);
             self.diameter.push(row.diameter);
+            self.triangle_count.push(row.triangle_count);
+            self.square_count.push(row.square_count);
+            self.clustering_coefficient.push(row.clustering_coefficient);
+            self.square_clustering_coefficient
+                .push(row.square_clustering_coefficient);
             for (column, value) in self.checks.iter_mut().zip(row.checks) {
                 column.push(value);
             }
@@ -367,7 +443,7 @@ impl TopologyColumns {
     }
 
     fn record_batch(&self, schema: SchemaRef, start: usize, end: usize) -> Result<RecordBatch> {
-        let mut arrays: Vec<ArrayRef> = Vec::with_capacity(CHECK_COUNT + 3);
+        let mut arrays: Vec<ArrayRef> = Vec::with_capacity(CHECK_COUNT + 7);
         arrays.push(Arc::new(UInt32Array::from_iter_values(
             self.cids[start..end].iter().copied(),
         )));
@@ -382,6 +458,20 @@ impl TopologyColumns {
                 .map(|(diameter, connected_components)| {
                     (connected_components == 1).then_some(diameter)
                 }),
+        )));
+        arrays.push(Arc::new(UInt32Array::from_iter_values(
+            self.triangle_count[start..end].iter().copied(),
+        )));
+        arrays.push(Arc::new(UInt32Array::from_iter_values(
+            self.square_count[start..end].iter().copied(),
+        )));
+        arrays.push(Arc::new(Float64Array::from_iter_values(
+            self.clustering_coefficient[start..end].iter().copied(),
+        )));
+        arrays.push(Arc::new(Float64Array::from_iter_values(
+            self.square_clustering_coefficient[start..end]
+                .iter()
+                .copied(),
         )));
 
         for column in &self.checks {
@@ -474,6 +564,14 @@ pub fn run_with_config(config: &PipelineConfig) -> Result<RunOutcome> {
         counts: stats.counts,
         connected_components_histogram: histogram_bins(&stats.connected_components_histogram),
         diameter_histogram: scalar_histogram_bins(&stats.diameter_histogram),
+        triangle_count_histogram: scalar_histogram_bins(&stats.triangle_count_histogram),
+        square_count_histogram: scalar_histogram_bins(&stats.square_count_histogram),
+        clustering_coefficient_histogram: coefficient_histogram_bins(
+            &stats.clustering_coefficient_histogram,
+        ),
+        square_clustering_coefficient_histogram: coefficient_histogram_bins(
+            &stats.square_clustering_coefficient_histogram,
+        ),
     };
 
     report.pipeline_elapsed_seconds = started_at.elapsed().as_secs_f64();
@@ -831,6 +929,10 @@ where
             checks: classification.checks,
             connected_components: classification.connected_components,
             diameter: classification.diameter.unwrap_or(0),
+            triangle_count: classification.triangle_count,
+            square_count: classification.square_count,
+            clustering_coefficient: classification.clustering_coefficient,
+            square_clustering_coefficient: classification.square_clustering_coefficient,
         },
         Err(_) => RowClassification {
             cid,
@@ -838,6 +940,10 @@ where
             checks: [false; CHECK_COUNT],
             connected_components: 0,
             diameter: 0,
+            triangle_count: 0,
+            square_count: 0,
+            clustering_coefficient: 0.0,
+            square_clustering_coefficient: 0.0,
         },
     }
 }
@@ -910,6 +1016,10 @@ fn parquet_schema() -> SchemaRef {
         Field::new("cid", DataType::UInt32, false),
         Field::new("connected_components", DataType::UInt16, false),
         Field::new("diameter", DataType::UInt16, true),
+        Field::new("triangle_count", DataType::UInt32, false),
+        Field::new("square_count", DataType::UInt32, false),
+        Field::new("clustering_coefficient", DataType::Float64, false),
+        Field::new("square_clustering_coefficient", DataType::Float64, false),
     ];
     for check in Check::ALL {
         fields.push(Field::new(check.name(), DataType::Boolean, false));
@@ -1060,7 +1170,7 @@ fn zenodo_description_html(report: &TopologyReport) -> String {
 
     format!(
         "<p>Topology annotations for the current PubChem CID-SMILES snapshot.</p>\
-         <p>The Parquet artifact stores one row per PubChem CID with connected-component counts, exact diameters for connected molecules, and the following topology predicates computed with <code>smiles-parser</code> and <code>geometric-traits</code>: {checks}.</p>\
+         <p>The Parquet artifact stores one row per PubChem CID with connected-component counts, exact diameters for connected molecules, triangle and square motif counts, mean local and square clustering coefficients, and the following topology predicates computed with <code>smiles-parser</code> and <code>geometric-traits</code>: {checks}.</p>\
          <p>The JSON sidecar stores aggregate counts, parse and topology error totals, and run metadata, while the SVG infographic provides an accessible visual summary of the run. Source snapshot URL: <code>{}</code>.</p>",
         report.source_url,
     )
@@ -1133,19 +1243,43 @@ fn temporary_path(path: &Path, suffix: &str) -> PathBuf {
 
 fn estimate_result_memory_bytes(total_records: u64) -> u64 {
     let cid_bytes = total_records.saturating_mul(mem::size_of::<u32>() as u64);
-    let component_bytes = COMPONENT_COLUMN_COUNT
-        .saturating_mul(total_records.saturating_mul(mem::size_of::<u16>() as u64));
+    let u16_bytes =
+        U16_COLUMN_COUNT.saturating_mul(total_records.saturating_mul(mem::size_of::<u16>() as u64));
+    let u32_bytes =
+        U32_COLUMN_COUNT.saturating_mul(total_records.saturating_mul(mem::size_of::<u32>() as u64));
+    let f64_bytes =
+        F64_COLUMN_COUNT.saturating_mul(total_records.saturating_mul(mem::size_of::<f64>() as u64));
     let bool_bytes = BOOL_COLUMN_COUNT.saturating_mul(total_records.div_ceil(8));
     cid_bytes
-        .saturating_add(component_bytes)
+        .saturating_add(u16_bytes)
+        .saturating_add(u32_bytes)
+        .saturating_add(f64_bytes)
         .saturating_add(bool_bytes)
 }
 
-fn increment_histogram(histogram: &mut Vec<u64>, component_count: u16) {
+fn increment_component_histogram(histogram: &mut Vec<u64>, component_count: u16) {
     let index = usize::from(component_count);
     if histogram.len() <= index {
         histogram.resize(index + 1, 0);
     }
+    histogram[index] += 1;
+}
+
+fn increment_scalar_histogram(histogram: &mut Vec<u64>, value: u32) {
+    let index = value as usize;
+    if histogram.len() <= index {
+        histogram.resize(index + 1, 0);
+    }
+    histogram[index] += 1;
+}
+
+fn increment_coefficient_histogram(histogram: &mut Vec<u64>, value: f64) {
+    if histogram.len() < COEFFICIENT_HISTOGRAM_BUCKETS {
+        histogram.resize(COEFFICIENT_HISTOGRAM_BUCKETS, 0);
+    }
+    let clamped = value.clamp(0.0, 1.0);
+    let index = ((clamped * COEFFICIENT_HISTOGRAM_BUCKETS as f64).floor() as usize)
+        .min(COEFFICIENT_HISTOGRAM_BUCKETS - 1);
     histogram[index] += 1;
 }
 
@@ -1176,8 +1310,18 @@ fn scalar_histogram_bins(histogram: &[u64]) -> Vec<ScalarHistogramBin> {
         .enumerate()
         .filter(|(_, molecules)| **molecules > 0)
         .map(|(value, &molecules)| ScalarHistogramBin {
-            value: value as u16,
+            value: value as u32,
             molecules,
+        })
+        .collect()
+}
+
+fn coefficient_histogram_bins(histogram: &[u64]) -> Vec<CoefficientHistogramBin> {
+    (0..COEFFICIENT_HISTOGRAM_BUCKETS)
+        .map(|index| CoefficientHistogramBin {
+            lower_bound: index as f64 / COEFFICIENT_HISTOGRAM_BUCKETS as f64,
+            upper_bound: (index + 1) as f64 / COEFFICIENT_HISTOGRAM_BUCKETS as f64,
+            molecules: histogram.get(index).copied().unwrap_or(0),
         })
         .collect()
 }
@@ -1251,10 +1395,10 @@ impl<R: Read> Read for ProgressReader<R> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BatchStats, CHECK_COUNT, Check, ComponentHistogramBin, DEFAULT_BATCH_SIZE,
-        DEFAULT_PARQUET_BATCH_ROWS, DEFAULT_PUBCHEM_SMILES_URL, InputMode, PipelineConfig,
-        PublishMode, RowClassification, RowState, ScalarHistogramBin, Smiles, TopologyColumns,
-        TopologyReport, ZenodoState, build_zenodo_client, build_zenodo_metadata,
+        BatchStats, CHECK_COUNT, Check, CoefficientHistogramBin, ComponentHistogramBin,
+        DEFAULT_BATCH_SIZE, DEFAULT_PARQUET_BATCH_ROWS, DEFAULT_PUBCHEM_SMILES_URL, InputMode,
+        PipelineConfig, PublishMode, RowClassification, RowState, ScalarHistogramBin, Smiles,
+        TopologyColumns, TopologyReport, ZenodoState, build_zenodo_client, build_zenodo_metadata,
         classify_pubchem_smiles, classify_record, classify_record_with, classify_topology_smiles,
         count_pubchem_records, ensure_parent_dir, estimate_result_memory_bytes, format_gibibytes,
         load_zenodo_state, missing_publication_warning, new_bytes_progress_bar,
@@ -1345,6 +1489,37 @@ mod tests {
                     molecules: 2,
                 },
             ],
+            triangle_count_histogram: vec![
+                ScalarHistogramBin {
+                    value: 0,
+                    molecules: 2,
+                },
+                ScalarHistogramBin {
+                    value: 1,
+                    molecules: 1,
+                },
+            ],
+            square_count_histogram: vec![ScalarHistogramBin {
+                value: 0,
+                molecules: 3,
+            }],
+            clustering_coefficient_histogram: vec![
+                CoefficientHistogramBin {
+                    lower_bound: 0.0,
+                    upper_bound: 0.1,
+                    molecules: 2,
+                },
+                CoefficientHistogramBin {
+                    lower_bound: 0.9,
+                    upper_bound: 1.0,
+                    molecules: 1,
+                },
+            ],
+            square_clustering_coefficient_histogram: vec![CoefficientHistogramBin {
+                lower_bound: 0.0,
+                upper_bound: 0.1,
+                molecules: 3,
+            }],
         }
     }
 
@@ -1462,6 +1637,10 @@ mod tests {
         assert_eq!(checks.len(), CHECK_COUNT);
         assert_eq!(metrics.connected_components, 1);
         assert_eq!(metrics.diameter, Some(2));
+        assert_eq!(metrics.triangle_count, 0);
+        assert_eq!(metrics.square_count, 0);
+        assert_eq!(metrics.clustering_coefficient, 0.0);
+        assert_eq!(metrics.square_clustering_coefficient, 0.0);
         assert!(checks[Check::Tree as usize]);
         assert!(checks[Check::Forest as usize]);
         assert!(checks[Check::Cactus as usize]);
@@ -1480,9 +1659,31 @@ mod tests {
         let metrics = classify_topology_smiles(&smiles).expect("classification should succeed");
         let checks = metrics.checks;
 
+        assert_eq!(metrics.triangle_count, 4);
         assert!(checks[Check::Planar as usize]);
         assert!(!checks[Check::Outerplanar as usize]);
         assert!(checks[Check::K4Homeomorph as usize]);
+    }
+
+    #[test]
+    fn classify_smiles_counts_cyclopropane_triangle() {
+        let smiles: Smiles = "C1CC1".parse().expect("valid cyclopropane");
+        let metrics = classify_topology_smiles(&smiles).expect("classification should succeed");
+
+        assert_eq!(metrics.triangle_count, 1);
+        assert_eq!(metrics.square_count, 0);
+        assert_eq!(metrics.clustering_coefficient, 1.0);
+    }
+
+    #[test]
+    fn classify_smiles_counts_cyclobutane_square() {
+        let smiles: Smiles = "C1CCC1".parse().expect("valid cyclobutane");
+        let metrics = classify_topology_smiles(&smiles).expect("classification should succeed");
+
+        assert_eq!(metrics.triangle_count, 0);
+        assert_eq!(metrics.square_count, 1);
+        assert_eq!(metrics.clustering_coefficient, 0.0);
+        assert_eq!(metrics.square_clustering_coefficient, 1.0);
     }
 
     #[test]
@@ -1517,6 +1718,10 @@ mod tests {
             checks: [false; CHECK_COUNT],
             connected_components: 0,
             diameter: 0,
+            triangle_count: 0,
+            square_count: 0,
+            clustering_coefficient: 0.0,
+            square_clustering_coefficient: 0.0,
         };
 
         stats.observe(&row);
@@ -1530,7 +1735,7 @@ mod tests {
     fn estimate_result_memory_matches_columnar_layout() {
         let rows = 120_000_000_u64;
         let estimated = estimate_result_memory_bytes(rows);
-        assert_eq!(estimated, 1_110_000_000);
+        assert_eq!(estimated, 3_990_000_000);
     }
 
     #[test]
@@ -1763,6 +1968,10 @@ mod tests {
         assert_eq!(field_names[0], "cid");
         assert_eq!(field_names[1], "connected_components");
         assert_eq!(field_names[2], "diameter");
+        assert_eq!(field_names[3], "triangle_count");
+        assert_eq!(field_names[4], "square_count");
+        assert_eq!(field_names[5], "clustering_coefficient");
+        assert_eq!(field_names[6], "square_clustering_coefficient");
         assert!(!field_names.contains(&"parse_ok"));
         assert!(!field_names.contains(&"topology_ok"));
         assert!(field_names.contains(&"k4_homeomorph"));
@@ -1779,6 +1988,10 @@ mod tests {
                 state: RowState::Success,
                 connected_components: 1,
                 diameter: 2,
+                triangle_count: 0,
+                square_count: 0,
+                clustering_coefficient: 0.0,
+                square_clustering_coefficient: 0.0,
                 checks: [
                     true, true, true, false, true, true, false, false, false, true,
                 ],
@@ -1788,6 +2001,10 @@ mod tests {
                 state: RowState::ParseError,
                 connected_components: 0,
                 diameter: 0,
+                triangle_count: 0,
+                square_count: 0,
+                clustering_coefficient: 0.0,
+                square_clustering_coefficient: 0.0,
                 checks: [false; CHECK_COUNT],
             },
         ]);

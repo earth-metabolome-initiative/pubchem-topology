@@ -67,6 +67,10 @@ fn writes_parquet_and_summary_from_existing_input() -> Result<()> {
     assert!(summary.contains("\"bipartite\""));
     assert!(summary.contains("\"connected_components_histogram\""));
     assert!(summary.contains("\"diameter_histogram\""));
+    assert!(summary.contains("\"triangle_count_histogram\""));
+    assert!(summary.contains("\"square_count_histogram\""));
+    assert!(summary.contains("\"clustering_coefficient_histogram\""));
+    assert!(summary.contains("\"square_clustering_coefficient_histogram\""));
     assert!(summary.contains("\"pipeline_elapsed_seconds\""));
     assert!(summary.contains("\"infographic_path\""));
     assert!(infographic.contains("PubChem Molecular Topology"));

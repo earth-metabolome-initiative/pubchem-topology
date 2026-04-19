@@ -1468,7 +1468,7 @@ dependencies = [
 [[package]]
 name = "geometric-traits"
 version = "0.1.0"
-source = "git+https://github.com/earth-metabolome-initiative/geometric-traits?branch=main#70df32e5f4914dc4fba59a059107706d93efae81"
+source = "git+https://github.com/earth-metabolome-initiative/geometric-traits?branch=main#e71de69217563d4306bb5ae16564db0b63c3f267"
 dependencies = [
  "bitvec",
  "hashbrown 0.16.1",

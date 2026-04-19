@@ -23,6 +23,10 @@ use geometric_traits::traits::{
     BipartiteDetection, CactusDetection, ChordalDetection, Diameter, K4HomeomorphDetection,
     K23HomeomorphDetection, K33HomeomorphDetection, OuterplanarityDetection, PlanarityDetection,
     TreeDetection,
+    algorithms::{
+        LocalClusteringCoefficientScorer, NodeScorer, SquareClusteringCoefficientScorer,
+        SquareCountScorer, TriangleCountScorer,
+    },
 };
 pub use smiles_parser::smiles::Smiles;
 use thiserror::Error;
@@ -129,12 +133,20 @@ impl Check {
 }
 
 /// Topology data derived from a SMILES graph.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TopologyClassification {
     /// Number of connected components in the molecular graph.
     pub connected_components: u16,
     /// Graph diameter for connected molecules. `None` for disconnected graphs.
     pub diameter: Option<u16>,
+    /// Number of distinct triangles in the molecular graph.
+    pub triangle_count: u32,
+    /// Number of distinct 4-cycles in the molecular graph.
+    pub square_count: u32,
+    /// Mean local clustering coefficient across all graph nodes.
+    pub clustering_coefficient: f64,
+    /// Mean square clustering coefficient across all graph nodes.
+    pub square_clustering_coefficient: f64,
     /// Topology predicates in `Check::ALL` order.
     pub checks: [bool; CHECK_COUNT],
 }
@@ -158,6 +170,12 @@ pub enum ClassificationError {
     /// The graph diameter did not fit into `u16`.
     #[error("diameter does not fit in u16")]
     DiameterOverflow,
+    /// The graph triangle count did not fit into `u32`.
+    #[error("triangle count does not fit in u32")]
+    TriangleCountOverflow,
+    /// The graph square count did not fit into `u32`.
+    #[error("square count does not fit in u32")]
+    SquareCountOverflow,
     /// Diameter computation failed inside the graph library.
     #[error("diameter failed: {0}")]
     Diameter(String),
@@ -213,6 +231,12 @@ pub fn classify_smiles(smiles: &Smiles) -> Result<TopologyClassification, Classi
     } else {
         None
     };
+    let triangle_count = aggregate_triangle_count(smiles)?;
+    let square_count = aggregate_square_count(smiles)?;
+    let clustering_coefficient =
+        average_score(&LocalClusteringCoefficientScorer.score_nodes(smiles));
+    let square_clustering_coefficient =
+        average_score(&SquareClusteringCoefficientScorer.score_nodes(smiles));
 
     let is_tree = smiles.is_tree();
     let is_forest = if is_tree { true } else { smiles.is_forest() };
@@ -254,6 +278,10 @@ pub fn classify_smiles(smiles: &Smiles) -> Result<TopologyClassification, Classi
     Ok(TopologyClassification {
         connected_components,
         diameter,
+        triangle_count,
+        square_count,
+        clustering_coefficient,
+        square_clustering_coefficient,
         checks: [
             is_tree,
             is_forest,
@@ -269,6 +297,36 @@ pub fn classify_smiles(smiles: &Smiles) -> Result<TopologyClassification, Classi
     })
 }
 
+fn aggregate_triangle_count(smiles: &Smiles) -> Result<u32, ClassificationError> {
+    u32::try_from(
+        TriangleCountScorer::default()
+            .score_nodes(smiles)
+            .into_iter()
+            .sum::<usize>()
+            / 3,
+    )
+    .map_err(|_| ClassificationError::TriangleCountOverflow)
+}
+
+fn aggregate_square_count(smiles: &Smiles) -> Result<u32, ClassificationError> {
+    u32::try_from(
+        SquareCountScorer::default()
+            .score_nodes(smiles)
+            .into_iter()
+            .sum::<usize>()
+            / 4,
+    )
+    .map_err(|_| ClassificationError::SquareCountOverflow)
+}
+
+fn average_score(scores: &[f64]) -> f64 {
+    if scores.is_empty() {
+        return 0.0;
+    }
+    let mean = scores.iter().sum::<f64>() / scores.len() as f64;
+    (mean * 1.0e12).round() / 1.0e12
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Check, classify_smiles_text};
@@ -279,6 +337,10 @@ mod tests {
 
         assert_eq!(classification.connected_components, 1);
         assert_eq!(classification.diameter, Some(2));
+        assert_eq!(classification.triangle_count, 0);
+        assert_eq!(classification.square_count, 0);
+        assert_eq!(classification.clustering_coefficient, 0.0);
+        assert_eq!(classification.square_clustering_coefficient, 0.0);
         assert!(classification.check(Check::Tree));
         assert!(classification.check(Check::Forest));
         assert!(classification.check(Check::Cactus));
@@ -296,8 +358,28 @@ mod tests {
         let classification =
             classify_smiles_text("*12*3*1*23").expect("tetrahedrane topology should classify");
 
+        assert_eq!(classification.triangle_count, 4);
         assert!(classification.check(Check::Planar));
         assert!(!classification.check(Check::Outerplanar));
         assert!(classification.check(Check::K4Homeomorph));
+    }
+
+    #[test]
+    fn classifies_cyclopropane_motifs() {
+        let classification = classify_smiles_text("C1CC1").expect("cyclopropane should classify");
+
+        assert_eq!(classification.triangle_count, 1);
+        assert_eq!(classification.square_count, 0);
+        assert_eq!(classification.clustering_coefficient, 1.0);
+    }
+
+    #[test]
+    fn classifies_cyclobutane_square_metrics() {
+        let classification = classify_smiles_text("C1CCC1").expect("cyclobutane should classify");
+
+        assert_eq!(classification.triangle_count, 0);
+        assert_eq!(classification.square_count, 1);
+        assert_eq!(classification.clustering_coefficient, 0.0);
+        assert_eq!(classification.square_clustering_coefficient, 1.0);
     }
 }
