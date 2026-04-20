@@ -16,8 +16,7 @@ use web_sys::{ErrorEvent, MessageEvent, Worker, WorkerOptions, WorkerType};
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const FAVICON_SVG: Asset = asset!("/assets/favicon.svg");
 const CANONICAL_URL: &str = "https://topology.earthmetabolome.org/";
-const META_DESCRIPTION: &str =
-    "Classify molecular graph topology from SMILES in the browser.";
+const META_DESCRIPTION: &str = "Classify molecular graph topology from SMILES in the browser.";
 const DEFAULT_SMILES: &str = "CCO";
 const CLASSIFIER_WORKER_SCRIPT: &str = "/generated/classifier-worker.js";
 const REPOSITORY_URL: &str = "https://github.com/earth-metabolome-initiative/pubchem-topology";
