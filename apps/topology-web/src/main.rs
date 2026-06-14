@@ -13,7 +13,10 @@ use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 #[cfg(target_arch = "wasm32")]
 use web_sys::{ErrorEvent, MessageEvent, Worker, WorkerOptions, WorkerType};
 
-const MAIN_CSS: Asset = asset!("/assets/main.css");
+const MAIN_CSS: Asset = asset!(
+    "/assets/main.css",
+    AssetOptions::css().with_static_head(true)
+);
 const FAVICON_SVG: Asset = asset!("/assets/favicon.svg");
 const CANONICAL_URL: &str = "https://topology.earthmetabolome.org/";
 const META_DESCRIPTION: &str = "Classify molecular graph topology from SMILES in the browser.";
